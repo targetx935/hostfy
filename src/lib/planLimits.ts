@@ -36,7 +36,7 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
             advancedAnalytics: false,
             csvExport: false,
             watermark: false,
-            domainWhitelist: false,
+            domainWhitelist: true,
         },
     },
     basic: {
