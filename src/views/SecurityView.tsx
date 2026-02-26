@@ -1,8 +1,10 @@
 ﻿import { Shield, Globe, Trash2, Plus, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getPlanSettings } from '../lib/planLimits';
 
-export const SecurityView = () => {
+export const SecurityView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
+    const planSettings = getPlanSettings(userPlan);
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -112,6 +114,23 @@ export const SecurityView = () => {
             setLoading(false);
         }
     };
+
+    if (!planSettings.features.domainWhitelist) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 text-center animate-[fadeIn_0.5s_ease-out]">
+                <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mb-6 border border-brand-primary/20">
+                    <Shield className="w-10 h-10 text-brand-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Segurança & Domínios (Basic+)</h2>
+                <p className="text-neutral-400 max-w-md mb-8">
+                    Proteja sua conta com 2FA e restrinja a exibição dos seus vídeos apenas aos seus domínios autorizados. Upgrade disponível para planos Basic e superiores.
+                </p>
+                <button className="bg-brand-primary hover:bg-brand-primary-light text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-brand-primary/20 hover:scale-105">
+                    Fazer Upgrade Agora
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col animate-[fadeIn_0.5s_ease-out] w-full max-w-3xl border border-white/5 bg-brand-dark-lighter rounded-2xl p-8 relative">

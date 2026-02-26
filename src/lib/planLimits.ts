@@ -44,7 +44,7 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         maxVideos: 10,
         maxStreamingHours: 100,
         features: {
-            leadCapture: false,
+            leadCapture: true,
             socialProof: false,
             advancedAnalytics: false,
             csvExport: false,

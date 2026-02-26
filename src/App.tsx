@@ -625,9 +625,9 @@ function App() {
 
   const navItems = [
     { id: 'videos', label: 'Meus vídeos', icon: Video },
-    ...(planSettings.features.leadCapture ? [{ id: 'leads', label: 'Leads', icon: Users }] : []),
-    ...(planSettings.features.advancedAnalytics ? [{ id: 'ab_tests', label: 'Testes A/B', icon: Beaker }] : []),
-    ...(planSettings.features.domainWhitelist ? [{ id: 'security', label: 'Segurança', icon: Shield }] : []),
+    { id: 'leads', label: 'Leads', icon: Users },
+    { id: 'ab_tests', label: 'Testes A/B', icon: Beaker },
+    { id: 'security', label: 'Segurança', icon: Shield },
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'partners', label: 'Seja um parceiro', icon: Users },
     ...(userProfile?.is_admin ? [{ id: 'admin', label: 'Master Admin', icon: Crown }] : []),

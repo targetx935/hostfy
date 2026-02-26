@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Beaker, X, Copy, BarChart2, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPlanSettings } from '../lib/planLimits';
 import type { VideoData } from '../types';
 
-export const ABTestsView = () => {
+export const ABTestsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
+    const planSettings = getPlanSettings(userPlan);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [testName, setTestName] = useState('');
     const [videoAId, setVideoAId] = useState('');
@@ -106,6 +108,23 @@ export const ABTestsView = () => {
             alert("Erro ao carregar dados do teste.");
         }
     };
+
+    if (!planSettings.features.advancedAnalytics) {
+        return (
+            <div className="flex flex-col items-center justify-center p-20 text-center animate-[fadeIn_0.5s_ease-out]">
+                <div className="w-20 h-20 bg-brand-primary/10 rounded-full flex items-center justify-center mb-6 border border-brand-primary/20">
+                    <Beaker className="w-10 h-10 text-brand-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">Testes A/B (PRO)</h2>
+                <p className="text-neutral-400 max-w-md mb-8">
+                    Crie batalhas entre suas VSLs para descobrir qualpitch ou edição gera mais conversão. Recurso exclusivo para planos PRO e Ultra.
+                </p>
+                <button className="bg-brand-primary hover:bg-brand-primary-light text-white font-bold py-3 px-8 rounded-xl transition-all shadow-lg shadow-brand-primary/20 hover:scale-105">
+                    Fazer Upgrade Agora
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col animate-[fadeIn_0.5s_ease-out] w-full relative">
