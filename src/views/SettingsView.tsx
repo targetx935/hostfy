@@ -9,6 +9,7 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
     const initialTab = location.state?.tab === 'conta' ? 'conta' : 'financeiro';
     const [activeTab, setActiveTab] = useState<'financeiro' | 'conta'>(initialTab);
 
+    const [invoices, setInvoices] = useState<any[]>([]);
     const [usage, setUsage] = useState({
         plays: 0,
         videos: 0
@@ -64,6 +65,15 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
                     videos: vids.length
                 });
             }
+
+            // Fetch Invoices
+            const { data: invs } = await supabase
+                .from('invoices')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+
+            if (invs) setInvoices(invs);
 
         } catch (err: any) {
             console.error('Error fetching settings data:', err);
@@ -310,35 +320,53 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
                     {/* Secondary Cards Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                        {/* Kiwify Payment Info Card */}
+                        {/* Invoice History Card */}
                         <div className="bg-brand-dark-lighter border border-white/5 rounded-2xl p-6 flex flex-col">
-                            <div className="flex items-center gap-3 mb-6">
-                                <CreditCard className="w-5 h-5 text-neutral-400" />
-                                <h3 className="text-lg font-bold text-white">Gestão de Cobrança</h3>
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <CreditCard className="w-5 h-5 text-neutral-400" />
+                                    <h3 className="text-lg font-bold text-white">Histórico de Cobrança</h3>
+                                </div>
+                                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">{invoices.length} faturas</span>
                             </div>
 
-                            <div className="flex-1 space-y-4">
-                                <p className="text-sm text-neutral-400 leading-relaxed">
-                                    Seus pagamentos são processados com total segurança pela **Kiwify**.
-                                    Para alterar o cartão de crédito, baixar notas fiscais ou cancelar sua assinatura, acesse o portal do cliente.
-                                </p>
-
-                                <div className="p-4 bg-brand-primary/5 border border-brand-primary/10 rounded-xl">
-                                    <div className="flex items-center gap-3 text-brand-primary mb-2">
-                                        <AlertCircle className="w-4 h-4" />
-                                        <span className="text-xs font-bold uppercase tracking-wider">Atenção</span>
+                            <div className="flex-1 space-y-3 overflow-y-auto max-h-[300px] pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                                {invoices.length > 0 ? (
+                                    invoices.map((inv) => (
+                                        <div key={inv.id} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-lg bg-brand-primary/10 flex items-center justify-center">
+                                                    <DollarSign className="w-5 h-5 text-brand-primary" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-white">Plano {inv.plan_name?.toUpperCase()}</p>
+                                                    <p className="text-[10px] text-neutral-500">{new Date(inv.paid_at || inv.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })} • {inv.payment_method?.toUpperCase() || 'Cartão'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm font-black text-white">R$ {(inv.amount_total / 100).toFixed(2).replace('.', ',')}</p>
+                                                <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${inv.status === 'paid' || inv.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                                                    {inv.status === 'paid' || inv.status === 'approved' ? 'Pago' : inv.status}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="h-full flex flex-col items-center justify-center py-8 text-center">
+                                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                                            <CreditCard className="w-6 h-6 text-neutral-600" />
+                                        </div>
+                                        <p className="text-sm text-neutral-500 font-medium">Nenhuma fatura encontrada.</p>
+                                        <p className="text-[10px] text-neutral-600 max-w-[200px] mt-1">Seu histórico de pagamentos aparecerá aqui após a primeira cobrança.</p>
                                     </div>
-                                    <p className="text-xs text-neutral-300">
-                                        As atualizações de plano levam aproximadamente 2 minutos para serem refletidas no dashboard após a confirmação do pagamento.
-                                    </p>
-                                </div>
+                                )}
                             </div>
 
                             <button
                                 onClick={() => window.open('https://customer.kiwify.com.br', '_blank')}
                                 className="mt-6 w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-bold text-white transition-colors flex items-center justify-center gap-2"
                             >
-                                Acessar Minha Conta Kiwify
+                                Detalhes no Portal Kiwify
                             </button>
                         </div>
 

@@ -59,12 +59,29 @@ serve(async (req) => {
             if (updateError) throw updateError;
 
             // Create a nice notification
-            await supabaseAdmin.from('notifications').insert({
-                user_id: (await supabaseAdmin.from('profiles').select('id').eq('email', email).single()).data?.id,
-                title: 'Assinatura Ativada! ✨',
-                message: `Seu plano ${targetPlan.toUpperCase()} foi ativado com sucesso. Aproveite todos os recursos!`,
-                type: 'success'
-            });
+            const { data: userIdData } = await supabaseAdmin.from('profiles').select('id').eq('email', email).single();
+            const userId = userIdData?.id;
+
+            if (userId) {
+                await supabaseAdmin.from('notifications').insert({
+                    user_id: userId,
+                    title: 'Assinatura Ativada! ✨',
+                    message: `Seu plano ${targetPlan.toUpperCase()} foi ativado com sucesso. Aproveite todos os recursos!`,
+                    type: 'success'
+                });
+
+                // 3.1. Log the invoice/payment history
+                await supabaseAdmin.from('invoices').insert({
+                    user_id: userId,
+                    kiwify_order_id: payload.order_id,
+                    amount_total: payload.total_amount_cents || payload.price_cents || 0,
+                    plan_name: targetPlan,
+                    status: order_status,
+                    payment_method: payload.payment_method,
+                    customer_email: email,
+                    paid_at: new Date().toISOString()
+                });
+            }
         }
 
         // 4. Handle cancellations

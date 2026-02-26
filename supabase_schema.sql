@@ -356,3 +356,22 @@ ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_time_sec
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_title TEXT DEFAULT 'Identifique-se para continuar';
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_button_text TEXT DEFAULT 'Continuar Assistindo';
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS social_proof_enabled BOOLEAN DEFAULT false;
+
+-- ------------------------------------------------------------------------------------------------
+-- 12. INVOICES (payment history)
+-- ------------------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    kiwify_order_id TEXT UNIQUE,
+    amount_total INTEGER, -- cents
+    plan_name TEXT,
+    status TEXT, -- 'paid', 'approved', 'refunded', etc.
+    payment_method TEXT,
+    customer_email TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    paid_at TIMESTAMP WITH TIME ZONE
+);
+
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view their own invoices" ON public.invoices FOR SELECT USING (auth.uid() = user_id);
