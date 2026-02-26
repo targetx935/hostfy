@@ -46,7 +46,7 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         features: {
             leadCapture: true,
             socialProof: false,
-            advancedAnalytics: false,
+            advancedAnalytics: true,
             csvExport: false,
             watermark: false,
             domainWhitelist: true,
