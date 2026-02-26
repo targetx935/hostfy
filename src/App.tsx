@@ -845,18 +845,32 @@ function App() {
               <span className="font-bold text-white tracking-wide">
                 {(() => {
                   const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                  const limit = planSettings.maxPlays;
+                  let limit = 100000;
+                  if (totalPlays >= 1000000) limit = 5000000;
+                  else if (totalPlays >= 500000) limit = 1000000;
+                  else if (totalPlays >= 100000) limit = 500000;
+
                   let medal = '🥉';
                   if (totalPlays >= 1000000) medal = '💎';
                   else if (totalPlays >= 500000) medal = '🥇';
                   else if (totalPlays >= 100000) medal = '🥈';
-                  return `${totalPlays.toLocaleString('pt-BR')}/${limit.toLocaleString('pt-BR')} Plays ${medal}`;
+
+                  const formatRaw = (num: number) => {
+                    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                    if (num >= 1000) return (num / 1000).toFixed(0) + 'k';
+                    return num.toString();
+                  };
+
+                  return `${totalPlays.toLocaleString('pt-BR')}/${formatRaw(limit)} Plays ${medal}`;
                 })()}
               </span>
               <span className="text-brand-primary font-black text-[10px] bg-brand-primary/10 px-1.5 py-0.5 rounded-md">
                 {(() => {
                   const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                  const limit = planSettings.maxPlays;
+                  let limit = 100000;
+                  if (totalPlays >= 1000000) limit = 5000000;
+                  else if (totalPlays >= 500000) limit = 1000000;
+                  else if (totalPlays >= 100000) limit = 500000;
                   const percent = Math.min(100, Math.floor((totalPlays / limit) * 100));
                   return `${percent}%`;
                 })()}
@@ -868,7 +882,10 @@ function App() {
                 style={{
                   width: (() => {
                     const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                    const limit = planSettings.maxPlays;
+                    let limit = 100000;
+                    if (totalPlays >= 1000000) limit = 5000000;
+                    else if (totalPlays >= 500000) limit = 1000000;
+                    else if (totalPlays >= 100000) limit = 500000;
                     return `${Math.min(100, (totalPlays / limit) * 100)}%`;
                   })()
                 }}
