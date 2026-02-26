@@ -846,7 +846,10 @@ function App() {
                 {(() => {
                   const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
                   const limit = planSettings.maxPlays;
-                  const medal = userProfile?.plan === 'ultra' ? '💎' : (userProfile?.plan === 'pro' ? '🥇' : '🥈');
+                  let medal = '🥉';
+                  if (totalPlays >= 1000000) medal = '💎';
+                  else if (totalPlays >= 500000) medal = '🥇';
+                  else if (totalPlays >= 100000) medal = '🥈';
                   return `${totalPlays.toLocaleString('pt-BR')}/${limit.toLocaleString('pt-BR')} Plays ${medal}`;
                 })()}
               </span>
