@@ -840,35 +840,33 @@ function App() {
             <span className="font-medium">Premiações</span>
           </div>
 
-          <div className="flex flex-col justify-center bg-white/5 hover:bg-white/10 px-4 py-1.5 rounded-full border border-white/10 hidden sm:flex cursor-pointer transition-colors min-w-[140px]" onClick={() => navigate('/rewards')}>
-            <div className="flex items-center justify-between gap-3 text-sm mb-1">
+          <div className="flex flex-col justify-center px-2 py-1.5 hidden sm:flex cursor-pointer transition-colors min-w-[160px]" onClick={() => navigate('/rewards')}>
+            <div className="flex items-center justify-between gap-3 text-sm mb-1.5">
               <span className="font-bold text-white tracking-wide">
                 {(() => {
                   const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                  return totalPlays >= 1000 ? (totalPlays / 1000).toFixed(1) + 'K' : totalPlays.toString();
-                })()} Plays
+                  const limit = planSettings.maxPlays;
+                  const medal = userProfile?.plan === 'ultra' ? '💎' : (userProfile?.plan === 'pro' ? '🥇' : '🥈');
+                  return `${totalPlays.toLocaleString('pt-BR')}/${limit.toLocaleString('pt-BR')} Plays ${medal}`;
+                })()}
               </span>
-              <span className="text-brand-primary font-bold text-xs">
+              <span className="text-brand-primary font-black text-[10px] bg-brand-primary/10 px-1.5 py-0.5 rounded-md">
                 {(() => {
                   const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                  let nextGoal = 100000; // Prata
-                  if (totalPlays >= 100000 && totalPlays < 500000) nextGoal = 500000; // Ouro
-                  else if (totalPlays >= 500000) nextGoal = 1000000; // Rubi
-                  const percent = Math.min(100, Math.floor((totalPlays / nextGoal) * 100));
+                  const limit = planSettings.maxPlays;
+                  const percent = Math.min(100, Math.floor((totalPlays / limit) * 100));
                   return `${percent}%`;
                 })()}
               </span>
             </div>
-            <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden">
+            <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden border border-white/5">
               <div
-                className="bg-gradient-to-r from-brand-primary to-rose-400 h-full rounded-full transition-all duration-1000"
+                className="bg-gradient-to-r from-brand-primary via-rose-500 to-amber-400 h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(232,42,88,0.4)]"
                 style={{
                   width: (() => {
                     const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                    let nextGoal = 100000; // Prata
-                    if (totalPlays >= 100000 && totalPlays < 500000) nextGoal = 500000;
-                    else if (totalPlays >= 500000) nextGoal = 1000000;
-                    return `${Math.min(100, (totalPlays / nextGoal) * 100)}%`;
+                    const limit = planSettings.maxPlays;
+                    return `${Math.min(100, (totalPlays / limit) * 100)}%`;
                   })()
                 }}
               ></div>
