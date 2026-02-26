@@ -72,6 +72,7 @@ function App() {
   const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
 
   const planSettings = useMemo(() => getPlanSettings(userProfile?.plan || 'trial'), [userProfile?.plan]);
+  const isSubscriptionValid = useMemo(() => isSubscriptionActive(userProfile), [userProfile]);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Embed Mode State
@@ -632,7 +633,6 @@ function App() {
     ...(userProfile?.is_admin ? [{ id: 'admin', label: 'Master Admin', icon: Crown }] : []),
   ];
 
-  const isSubscriptionValid = useMemo(() => isSubscriptionActive(userProfile), [userProfile]);
 
   if (session && userProfile && !isSubscriptionValid && !userProfile.is_admin) {
     return <SubscriptionWall profile={userProfile} onSignOut={() => supabase.auth.signOut()} />;
