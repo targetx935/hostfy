@@ -28,8 +28,8 @@ export interface UserProfile {
 export const PLAN_LIMITS: Record<string, PlanSettings> = {
     trial: {
         name: 'Teste Grátis',
-        maxVideos: 5,
-        maxStreamingHours: 10,
+        maxVideos: 1,
+        maxStreamingHours: 5,
         features: {
             leadCapture: false,
             socialProof: false,

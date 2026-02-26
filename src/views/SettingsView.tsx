@@ -174,7 +174,7 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
 
     const currentPlan = {
         name: planSettings.name || 'Plano PRO',
-        price: profileData?.plan === 'basic' ? 'R$ 79,90' : profileData?.plan === 'ultra' ? 'R$ 297,00' : 'R$ 129,90',
+        price: profileData?.plan === 'basic' ? 'R$ 49,90' : profileData?.plan === 'ultra' ? 'R$ 297,00' : 'R$ 129,90',
         nextBilling: '28 de março de 2026', // Ideally fetched from Kiwify
         playsUsed: usage.plays,
         playsTotal: planSettings.maxStreamingHours * 10, // Rough estimate if we don't have play limits
