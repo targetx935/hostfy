@@ -71,6 +71,25 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
         }
     };
 
+    const handleSimulatePlan = async (newPlan: string) => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { error } = await supabase
+                .from('profiles')
+                .update({ plan: newPlan })
+                .eq('id', user.id);
+
+            if (error) throw error;
+            if (showToast) showToast(`Plano alterado com sucesso para: ${newPlan.toUpperCase()}`);
+            fetchData();
+        } catch (err: any) {
+            console.error('Error simulating plan:', err);
+            if (showToast) showToast(`Erro ao simular: ${err.message}`);
+        }
+    };
+
     const handleUpdateProfile = async () => {
         setSaving(true);
         try {
@@ -346,6 +365,30 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
                             </div>
                         </div>
                     </div>
+
+                    {/* ADMIN PLAN SWITCHER */}
+                    {profileData?.is_admin && (
+                        <div className="bg-brand-primary/10 border border-brand-primary/20 rounded-2xl p-6 mt-8 animate-[slideUp_0.4s_ease-out]">
+                            <div className="flex items-center gap-3 mb-4">
+                                <Activity className="w-5 h-5 text-brand-primary" />
+                                <h3 className="text-lg font-bold text-white">Simulador de Plano (Admin)</h3>
+                                <span className="bg-brand-primary/20 text-brand-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-tighter">Ferramenta de Admin</span>
+                            </div>
+                            <p className="text-sm text-neutral-400 mb-6 font-medium">Como você é um administrador, você pode alternar seu plano instantaneamente para testar as limitações e visualização de cada nível abaixo:</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {['trial', 'basic', 'pro', 'ultra'].map((p) => (
+                                    <button
+                                        key={p}
+                                        onClick={() => handleSimulatePlan(p)}
+                                        className={`py-3 px-4 rounded-xl text-sm font-bold transition-all border flex flex-col items-center gap-1 ${profileData?.plan === p ? 'bg-brand-primary text-white border-brand-primary shadow-[0_0_20px_rgba(232,42,88,0.4)] scale-[1.02]' : 'bg-white/5 text-neutral-400 border-white/5 hover:border-white/10 hover:text-white'}`}
+                                    >
+                                        <span className="uppercase text-[10px] opacity-70 tracking-widest">{profileData?.plan === p ? 'Ativo' : 'Trocar para'}</span>
+                                        {p === 'trial' ? 'Teste Grátis' : p.charAt(0).toUpperCase() + p.slice(1)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
