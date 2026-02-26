@@ -8,10 +8,13 @@ import { CustomPlayer } from './components/CustomPlayer';
 import { Auth } from './components/Auth';
 import { UploadModal } from './components/UploadModal';
 import { supabase } from './lib/supabase';
+import { SubscriptionWall } from './components/SubscriptionWall';
 
 import { Routes, Route, Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Suspense } from 'react';
+import { Suspense, useMemo } from 'react';
 import type { VideoData } from './types';
+import { getPlanSettings, isSubscriptionActive } from './lib/planLimits';
+import type { UserProfile as UserProfileType } from './lib/planLimits';
 
 const VideoDetailsView = React.lazy<React.ComponentType<any>>(() => import('./views/VideoDetailsView').then((m: any) => ({ default: m.VideoDetailsView || m.default })));
 const AnalyticsView = React.lazy<React.ComponentType<any>>(() => import('./views/AnalyticsView').then((m: any) => ({ default: m.AnalyticsView || m.default })));
@@ -21,6 +24,7 @@ const SecurityView = React.lazy<React.ComponentType<any>>(() => import('./views/
 const ABTestsView = React.lazy<React.ComponentType<any>>(() => import('./views/ABTestsView').then((m: any) => ({ default: m.ABTestsView || m.default })));
 const RewardsView = React.lazy<React.ComponentType<any>>(() => import('./views/RewardsView').then((m: any) => ({ default: m.RewardsView || m.default })));
 const AdminView = React.lazy<React.ComponentType<any>>(() => import('./views/AdminView').then((m: any) => ({ default: m.AdminView || m.default })));
+const LeadsView = React.lazy<React.ComponentType<any>>(() => import('./views/LeadsView').then((m: any) => ({ default: m.LeadsView || m.default })));
 
 const VideoRouteWrapper = ({ videos, showToast, fetchContent, type }: any) => {
   const { id } = useParams();
@@ -30,10 +34,10 @@ const VideoRouteWrapper = ({ videos, showToast, fetchContent, type }: any) => {
   if (!videos.length) return <div className="p-10 text-neutral-400 text-center">Carregando vídeo...</div>;
   if (!video) return <div className="p-10 text-red-500 text-center">Vídeo não encontrado.</div>;
   if (type === 'analytics') {
-    return <AnalyticsView video={video} onBack={() => navigate('/video/' + id)} onSync={fetchContent} />;
+    return <AnalyticsView video={video} onBack={() => navigate('/video/' + id)} onSync={fetchContent} userPlan={video.userPlan || 'trial'} />;
   }
 
-  return <VideoDetailsView video={video} onBack={() => { fetchContent(); navigate('/'); }} showToast={showToast} />;
+  return <VideoDetailsView video={video} onBack={() => { fetchContent(); navigate('/'); }} showToast={showToast} userPlan={videos[0]?.userPlan || 'trial'} />;
 };
 
 function App() {
@@ -65,7 +69,9 @@ function App() {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [openVideoMenuId, setOpenVideoMenuId] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<{ full_name: string, avatar_url: string, is_admin?: boolean } | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
+
+  const planSettings = useMemo(() => getPlanSettings(userProfile?.plan || 'trial'), [userProfile?.plan]);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Embed Mode State
@@ -355,7 +361,7 @@ function App() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_url, is_admin')
+        .select('full_name, avatar_url, is_admin, plan, subscription_status, trial_ends_at')
         .eq('id', userId)
         .single();
 
@@ -618,12 +624,19 @@ function App() {
 
   const navItems = [
     { id: 'videos', label: 'Meus vídeos', icon: Video },
+    { id: 'leads', label: 'Leads', icon: Users, restricted: !planSettings.features.leadCapture },
     { id: 'ab_tests', label: 'Testes A/B', icon: Beaker },
     { id: 'security', label: 'Segurança', icon: Shield },
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'partners', label: 'Seja um parceiro', icon: Users },
     ...(userProfile?.is_admin ? [{ id: 'admin', label: 'Master Admin', icon: Crown }] : []),
   ];
+
+  const isSubscriptionValid = useMemo(() => isSubscriptionActive(userProfile), [userProfile]);
+
+  if (session && userProfile && !isSubscriptionValid && !userProfile.is_admin) {
+    return <SubscriptionWall profile={userProfile} onSignOut={() => supabase.auth.signOut()} />;
+  }
 
   return (
     <div className="min-h-screen bg-brand-dark text-neutral-50 flex font-sans relative">
@@ -661,6 +674,8 @@ function App() {
           }}
           showToast={showToast}
           folders={folders}
+          videoCount={videos.length}
+          userPlan={userProfile?.plan || 'trial'}
         />
       )}
 
@@ -746,12 +761,19 @@ function App() {
             <React.Fragment key={item.id}>
               <Link
                 to={item.id === 'videos' ? '/' : `/${item.id.replace('_', '-')}`}
-                className={`flex items-center ${isSidebarCollapsed ? 'justify-center p-3' : 'gap-3 px-3 py-3'} rounded-lg font-medium transition-all w-full text-left cursor-pointer
+                onClick={(e) => {
+                  if (item.restricted) {
+                    e.preventDefault();
+                    showToast(`O recurso "${item.label}" exige plano PRO ou superior.`);
+                  }
+                }}
+                className={`flex items-center ${isSidebarCollapsed ? 'justify-center p-3' : 'gap-3 px-3 py-3'} rounded-lg font-medium transition-all w-full text-left cursor-pointer relative
                    ${item.id === 'admin'
                     ? 'bg-gradient-to-r from-brand-primary to-rose-600 text-white shadow-[0_0_20px_rgba(232,42,88,0.3)] animate-[adminPulse_2s_infinite]'
                     : location.pathname === (item.id === 'videos' ? '/' : `/${item.id.replace('_', '-')}`)
                       ? 'bg-brand-primary/10 text-brand-primary'
                       : 'hover:bg-white/5 text-neutral-400 hover:text-neutral-100'}
+                  ${item.restricted ? 'opacity-50 grayscale select-none' : ''}
                  `}
                 title={isSidebarCollapsed ? item.label : undefined}
               >
@@ -762,6 +784,9 @@ function App() {
                     {item.id === 'admin' && <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>}
                   </span>
                 )}
+                {item.restricted && !isSidebarCollapsed && (
+                  <Shield className="w-3.5 h-3.5 absolute right-3 text-brand-primary opacity-80" />
+                )}
               </Link>
               {item.id === 'ab_tests' && <div className="my-2 border-t border-white/5"></div>}
               {item.id === 'settings' && <div className="my-2 border-t border-white/5"></div>}
@@ -769,6 +794,29 @@ function App() {
           ))}
 
           <div className="mt-auto pb-4 pt-4 flex flex-col gap-2 w-full">
+            {!isSidebarCollapsed && userProfile && (
+              <div className="px-4 mb-4">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-bold">Consumo de Banda</span>
+                    <span className="text-[10px] text-brand-primary font-bold">
+                      {Math.floor(((userProfile.current_bandwidth_gb || 0) / (planSettings.maxStreamingHours || 1)) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden mb-1">
+                    <div
+                      className={`h-full rounded-full transition-all duration-1000 ${((userProfile.current_bandwidth_gb || 0) / (planSettings.maxStreamingHours || 1)) > 0.9 ? 'bg-red-500' : 'bg-brand-primary'}`}
+                      style={{ width: `${Math.min(100, ((userProfile.current_bandwidth_gb || 0) / (planSettings.maxStreamingHours || 1)) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-[10px] text-neutral-500 font-medium">{(userProfile.current_bandwidth_gb || 0).toFixed(1)} GB</span>
+                    <span className="text-[10px] text-neutral-500 font-medium">limite {planSettings.maxStreamingHours}GB</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <button onClick={() => showToast('Central de Ajuda abrindo...')} className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3 py-3'} rounded-lg hover:bg-white/5 text-neutral-400 hover:text-neutral-100 font-medium transition-colors cursor-pointer group`} title={isSidebarCollapsed ? 'Ajuda' : undefined}>
               <div className={`flex items-center ${isSidebarCollapsed ? '' : 'gap-3'}`}>
                 <HelpCircle className="w-5 h-5 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
@@ -927,6 +975,10 @@ function App() {
                     </div>
                     <div className="flex flex-col min-w-0">
                       <span className="text-sm font-bold text-white truncate">{userProfile?.full_name || 'Usuário'}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-brand-primary font-black uppercase tracking-widest">{planSettings.name}</span>
+                        {planSettings.name !== 'Ultra' && <button onClick={() => showToast('Abrindo checkout...')} className="text-[10px] text-white hover:underline font-bold">Upgrade</button>}
+                      </div>
                       <span className="text-xs text-neutral-500 truncate">{session?.user?.email}</span>
                     </div>
                   </div>
@@ -966,17 +1018,15 @@ function App() {
                       </div>
                       <span className="text-xs text-neutral-500 ml-6">
                         {(() => {
-                          const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                          return `${totalPlays.toLocaleString('pt-BR')} / 6.000 plays`;
+                          const limit = planSettings.maxVideos === Infinity ? 'Ilimitado' : `${planSettings.maxVideos} vídeos`;
+                          return `${videos.length} / ${limit}`;
                         })()}
                       </span>
                     </div>
                     {/* Circular Progress */}
                     <div className="relative w-10 h-10 flex flex-col items-center justify-center rounded-full bg-brand-dark border border-white/10 shrink-0 shadow-inner">
-                      {/* CSS Hack for a quick half-circle progress visualization based on plays. Real implementation would use SVG for precise dasharray. Doing a simple border hack for visual demo. */}
                       {(() => {
-                        const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
-                        const percent = Math.min(100, Math.floor((totalPlays / 6000) * 100));
+                        const percent = planSettings.maxVideos === Infinity ? 0 : Math.min(100, Math.floor((videos.length / planSettings.maxVideos) * 100));
 
                         return (
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -1278,13 +1328,14 @@ function App() {
                   })()}
                 </div>
               } />
-              <Route path="/settings" element={<SettingsView />} />
-              <Route path="/ab-tests" element={<ABTestsView />} />
+              <Route path="/leads" element={<LeadsView userPlan={userProfile?.plan} />} />
+              <Route path="/settings" element={<SettingsView userPlan={userProfile?.plan} />} />
+              <Route path="/ab-tests" element={<ABTestsView userPlan={userProfile?.plan} />} />
               <Route path="/partners" element={<PartnersView />} />
-              <Route path="/security" element={<SecurityView />} />
+              <Route path="/security" element={<SecurityView userPlan={userProfile?.plan} />} />
               <Route path="/rewards" element={<RewardsView />} />
-              <Route path="/video/:id" element={<VideoRouteWrapper videos={videos} showToast={showToast} fetchContent={fetchContent} type="details" />} />
-              <Route path="/video/:id/analytics" element={<VideoRouteWrapper videos={videos} showToast={showToast} fetchContent={fetchContent} type="analytics" />} />
+              <Route path="/video/:id" element={<VideoRouteWrapper videos={videos.map(v => ({ ...v, userPlan: userProfile?.plan }))} showToast={showToast} fetchContent={fetchContent} type="details" />} />
+              <Route path="/video/:id/analytics" element={<VideoRouteWrapper videos={videos.map(v => ({ ...v, userPlan: userProfile?.plan }))} showToast={showToast} fetchContent={fetchContent} type="analytics" />} />
               <Route path="/admin" element={<AdminView onBack={() => navigate('/')} />} />
             </Routes>
           </Suspense>

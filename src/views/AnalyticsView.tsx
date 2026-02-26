@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Play, ChevronUp, Users, Clock, MousePointerClick, Link2 } from 'lucide-react';
+import { getPlanSettings } from '../lib/planLimits';
 
-export const AnalyticsView = ({ video, onBack, onSync }: { video: any, onBack: () => void, onSync?: () => void }) => {
+export const AnalyticsView = ({ video, onBack, onSync, userPlan = 'trial' }: { video: any, onBack: () => void, onSync?: () => void, userPlan?: string }) => {
+    const planSettings = getPlanSettings(userPlan);
     const [stats, setStats] = useState({
         plays: 0,
         unique: 0,
@@ -193,6 +195,10 @@ export const AnalyticsView = ({ video, onBack, onSync }: { video: any, onBack: (
     }, [video.id]);
 
     const exportLeadsToCSV = () => {
+        if (!planSettings.features.advancedAnalytics) {
+            alert('A exportação de leads em CSV é exclusiva para o plano PRO.');
+            return;
+        }
         if (!stats.recentLeads || stats.recentLeads.length === 0) return;
 
         const headers = ["ID", "E-mail", "Nome", "Data de Captura"];

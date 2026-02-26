@@ -25,9 +25,24 @@ create policy "Users can update own profile." on profiles for update using (auth
 -- Função que insere o perfil na tabela public.profiles logo após o cadastro
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  existing_trial_count int;
 begin
-  insert into public.profiles (id, full_name, avatar_url)
-  values (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url');
+  -- Check for fingerprint abuse
+  select count(*) into existing_trial_count 
+  from public.profiles 
+  where browser_fingerprint = new.raw_user_meta_data->>'browser_fingerprint';
+
+  insert into public.profiles (id, email, full_name, avatar_url, browser_fingerprint, subscription_status, trial_ends_at)
+  values (
+    new.id, 
+    new.email,
+    new.raw_user_meta_data->>'full_name', 
+    new.raw_user_meta_data->>'avatar_url',
+    new.raw_user_meta_data->>'browser_fingerprint',
+    'trialing',
+    case when existing_trial_count > 0 then now() else (now() + interval '1 month') end
+  );
   return new;
 end;
 $$ language plpgsql security definer;

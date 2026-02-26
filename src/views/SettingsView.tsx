@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Check, Loader2, Camera, User, CreditCard, Activity, DollarSign, Download, Plus, AlertCircle } from 'lucide-react';
+import { Check, Loader2, Camera, User, CreditCard, Activity, DollarSign, Download, Plus, AlertCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPlanSettings } from '../lib/planLimits';
 
 export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void }) => {
     const location = useLocation();
     const initialTab = location.state?.tab === 'conta' ? 'conta' : 'financeiro';
     const [activeTab, setActiveTab] = useState<'financeiro' | 'conta'>(initialTab);
 
-    useEffect(() => {
-        if (location.state?.tab) {
-            setActiveTab(location.state.tab as 'financeiro' | 'conta');
-        }
-    }, [location.state]);
+    const [loading, setLoading] = useState(true);
+    const [usage, setUsage] = useState({
+        plays: 0,
+        videos: 0
+    });
+    const [profileData, setProfileData] = useState<any>(null);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [profile, setProfile] = useState({
@@ -25,30 +27,50 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        fetchProfile();
+        fetchData();
     }, []);
 
-    const fetchProfile = async () => {
+    const fetchData = async () => {
         try {
+            setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data, error } = await supabase
+            // Fetch Profile
+            const { data: prof, error: profError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', user.id)
                 .single();
 
-            if (error && error.code !== 'PGRST116') throw error;
+            if (profError && profError.code !== 'PGRST116') throw profError;
 
+            setProfileData(prof);
             setProfile({
-                full_name: data?.full_name || user.user_metadata?.full_name || '',
+                full_name: prof?.full_name || user.user_metadata?.full_name || '',
                 email: user.email || '',
-                company: data?.company || '',
-                avatar_url: data?.avatar_url || ''
+                company: prof?.company || '',
+                avatar_url: prof?.avatar_url || ''
             });
+
+            // Fetch Usage (Plays and Videos)
+            const { data: vids } = await supabase
+                .from('videos')
+                .select('plays')
+                .eq('user_id', user.id);
+
+            if (vids) {
+                const totalPlays = vids.reduce((acc, v) => acc + (v.plays || 0), 0);
+                setUsage({
+                    plays: totalPlays,
+                    videos: vids.length
+                });
+            }
+
         } catch (err: any) {
-            console.error('Error fetching profile:', err);
+            console.error('Error fetching settings data:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -68,6 +90,7 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
 
             if (error) throw error;
             if (showToast) showToast('Perfil atualizado com sucesso!');
+            fetchData(); // Refresh to get latest profileData
         } catch (err: any) {
             console.error('Error updating profile:', err);
             if (showToast) showToast(`Erro ao salvar: ${err.message}`);
@@ -88,6 +111,15 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
             const fileExt = file.name.split('.').pop();
             const fileName = `${user.id}-${Math.random()}.${fileExt}`;
             const filePath = `${fileName}`;
+
+            // Pruning: delete old avatars for this user
+            const { data: oldFiles } = await supabase.storage.from('avatars').list();
+            if (oldFiles) {
+                const userFiles = oldFiles.filter(f => f.name.startsWith(`${user.id}-`));
+                if (userFiles.length > 0) {
+                    await supabase.storage.from('avatars').remove(userFiles.map(f => f.name));
+                }
+            }
 
             // Upload to 'avatars' bucket
             const { error: uploadError } = await supabase.storage
@@ -114,7 +146,7 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
 
             setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
             if (showToast) showToast('Foto de perfil atualizada!');
-
+            fetchData();
         } catch (err: any) {
             console.error('Error uploading avatar:', err);
             if (showToast) showToast(`Erro no upload: ${err.message}`);
@@ -123,26 +155,31 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
         }
     };
 
-    // MOCK DATA for Financeiro Tab
+    // Derived Data for Financeiro Tab
+    const planSettings = getPlanSettings(profileData?.plan || 'trial');
+    const bandwidthLimit = planSettings.maxStreamingHours || 10;
+    const bandwidthUsed = profileData?.current_bandwidth_gb || 0;
+
+    // Feature list mapping (more human readable)
+    const activeFeatures = [
+        ...(planSettings.maxVideos === Infinity ? ['Vídeos Ilimitados'] : [`Até ${planSettings.maxVideos} Vídeos`]),
+        ...(planSettings.features.advancedAnalytics ? ['Analytics Avançado'] : ['Analytics Básico']),
+        ...(planSettings.features.leadCapture ? ['Captação de Leads'] : []),
+        ...(planSettings.features.socialProof ? ['Prova Social'] : []),
+        ...(planSettings.features.domainWhitelist ? ['Domínios Permitidos'] : []),
+        ...(planSettings.features.watermark ? ['Watermarking DRM'] : []),
+        'Player Customizável',
+        'Suporte Prioritário'
+    ].slice(0, 4); // Limit to 4 for card aesthetics
+
     const currentPlan = {
-        name: 'Plano PRO',
-        price: 'R$ 129,90',
-        nextBilling: '28 de março de 2026',
-        playsUsed: 4250,
-        playsTotal: 10000,
-        features: ['Armazenamento Ilimitado', 'Player Customizável', 'Analytics Avançado', 'Suporte Prioritário']
+        name: planSettings.name || 'Plano PRO',
+        price: profileData?.plan === 'basic' ? 'R$ 79,90' : profileData?.plan === 'ultra' ? 'R$ 297,00' : 'R$ 129,90',
+        nextBilling: '28 de março de 2026', // Ideally fetched from Kiwify
+        playsUsed: usage.plays,
+        playsTotal: planSettings.maxStreamingHours * 10, // Rough estimate if we don't have play limits
+        features: activeFeatures
     };
-
-    const paymentMethods = [
-        { brand: 'MasterCard', last4: '7515', isDefault: true, expires: '04/2033' }
-    ];
-
-    const invoices = [
-        { id: '1', date: '28/02/2026', amount: 'R$ 129,90', status: 'Pago' },
-        { id: '2', date: '28/01/2026', amount: 'R$ 129,90', status: 'Pago' },
-        { id: '3', date: '28/12/2025', amount: 'R$ 129,90', status: 'Pago' },
-        { id: '4', date: '28/11/2025', amount: 'R$ 129,90', status: 'Pago' }
-    ];
 
 
     return (
@@ -200,30 +237,55 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
                                 <div className="space-y-6">
                                     <div>
                                         <h4 className="text-sm font-bold text-neutral-300 border-b border-white/10 pb-2 mb-4">Uso do Plano (Mensal)</h4>
-                                        <div className="flex justify-between items-end mb-2">
-                                            <span className="text-sm text-neutral-400 flex items-center gap-2"><Activity className="w-4 h-4 text-brand-primary" /> Visualizações</span>
-                                            <span className="text-sm font-bold text-white">{currentPlan.playsUsed.toLocaleString('pt-BR')} <span className="text-neutral-500 font-normal">/ {currentPlan.playsTotal.toLocaleString('pt-BR')}</span></span>
+                                        <div className="space-y-4">
+                                            {/* Plays Progress */}
+                                            <div>
+                                                <div className="flex justify-between items-end mb-2">
+                                                    <span className="text-sm text-neutral-400 flex items-center gap-2"><Activity className="w-4 h-4 text-brand-primary" /> Visualizações</span>
+                                                    <span className="text-sm font-bold text-white">{currentPlan.playsUsed.toLocaleString('pt-BR')} <span className="text-neutral-500 font-normal">/ {currentPlan.playsTotal.toLocaleString('pt-BR')}</span></span>
+                                                </div>
+                                                <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden mb-1">
+                                                    <div
+                                                        className="h-full bg-gradient-to-r from-brand-primary to-rose-400 rounded-full transition-all duration-1000"
+                                                        style={{ width: `${Math.min(100, (currentPlan.playsUsed / currentPlan.playsTotal) * 100)}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+
+                                            {/* Bandwidth Progress */}
+                                            <div>
+                                                <div className="flex justify-between items-end mb-2">
+                                                    <span className="text-sm text-neutral-400 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-brand-primary" /> Banda (Streaming)</span>
+                                                    <span className="text-sm font-bold text-white">{bandwidthUsed.toFixed(1)} GB <span className="text-neutral-500 font-normal">/ {bandwidthLimit} GB</span></span>
+                                                </div>
+                                                <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden mb-1">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-1000 ${bandwidthUsed / bandwidthLimit > 0.9 ? 'bg-red-500' : 'bg-brand-primary'}`}
+                                                        style={{ width: `${Math.min(100, (bandwidthUsed / bandwidthLimit) * 100)}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden mb-2">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-brand-primary to-rose-400 rounded-full"
-                                                style={{ width: `${(currentPlan.playsUsed / currentPlan.playsTotal) * 100}%` }}
-                                            ></div>
-                                        </div>
-                                        <p className="text-xs text-neutral-500 text-right">O limite reinicia em 3 dias</p>
+                                        <p className="text-xs text-neutral-500 text-right mt-2">O limite reinicia mensalmente</p>
                                     </div>
                                     <div className="pt-2">
-                                        <button className="text-brand-primary text-sm font-bold hover:underline transition-all">Ver detalhes completos do uso</button>
+                                        <button onClick={() => setActiveTab('financeiro')} className="text-brand-primary text-sm font-bold hover:underline transition-all">Ver detalhes completos do uso</button>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div className="flex flex-col items-start md:items-end justify-start gap-4 z-10 border-t md:border-t-0 border-white/10 pt-6 md:pt-0">
-                            <button className="bg-brand-primary hover:bg-brand-primary-light text-white font-bold py-3 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(232,42,88,0.2)] hover:shadow-[0_0_30px_rgba(232,42,88,0.4)] whitespace-nowrap w-full md:w-auto">
-                                Alterar meu plano
+                            <button
+                                onClick={() => window.open('https://hostfy.pro', '_blank')}
+                                className="bg-brand-primary hover:bg-brand-primary-light text-white font-bold py-3 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(232,42,88,0.2)] hover:shadow-[0_0_30px_rgba(232,42,88,0.4)] whitespace-nowrap w-full md:w-auto"
+                            >
+                                {profileData?.plan === 'trial' ? 'Assinar Hostfy' : 'Alterar meu plano'}
                             </button>
-                            <button className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium py-3 px-8 rounded-xl transition-colors whitespace-nowrap w-full md:w-auto">
+                            <button
+                                onClick={() => window.open('https://customer.kiwify.com.br', '_blank')}
+                                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium py-3 px-8 rounded-xl transition-colors whitespace-nowrap w-full md:w-auto"
+                            >
                                 Detalhes do pagamento
                             </button>
                         </div>
@@ -232,75 +294,60 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
                     {/* Secondary Cards Row */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                        {/* Payment Methods */}
+                        {/* Kiwify Payment Info Card */}
                         <div className="bg-brand-dark-lighter border border-white/5 rounded-2xl p-6 flex flex-col">
                             <div className="flex items-center gap-3 mb-6">
                                 <CreditCard className="w-5 h-5 text-neutral-400" />
-                                <h3 className="text-lg font-bold text-white">Formas de pagamento</h3>
+                                <h3 className="text-lg font-bold text-white">Gestão de Cobrança</h3>
                             </div>
 
-                            <div className="space-y-4 flex-1">
-                                {paymentMethods.map((method, i) => (
-                                    <div key={i} className="flex items-center justify-between p-4 bg-black/20 border border-white/5 rounded-xl group hover:border-white/10 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-8 bg-neutral-800 rounded flex items-center justify-center relative overflow-hidden">
-                                                {/* Simulated Mastercard Logo */}
-                                                <div className="absolute left-1.5 w-5 h-5 bg-red-500 rounded-full opacity-80 mix-blend-screen"></div>
-                                                <div className="absolute right-1.5 w-5 h-5 bg-yellow-500 rounded-full opacity-80 mix-blend-screen"></div>
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-white font-medium">•••• {method.last4}</span>
-                                                    {method.isDefault && <span className="bg-white/5 text-neutral-400 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-white/10">Padrão</span>}
-                                                </div>
-                                                <span className="text-xs text-neutral-500">Vence em {method.expires}</span>
-                                            </div>
-                                        </div>
-                                        <button className="p-2 text-neutral-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
-                                            <AlertCircle className="w-4 h-4" />
-                                        </button>
+                            <div className="flex-1 space-y-4">
+                                <p className="text-sm text-neutral-400 leading-relaxed">
+                                    Seus pagamentos são processados com total segurança pela **Kiwify**.
+                                    Para alterar o cartão de crédito, baixar notas fiscais ou cancelar sua assinatura, acesse o portal do cliente.
+                                </p>
+
+                                <div className="p-4 bg-brand-primary/5 border border-brand-primary/10 rounded-xl">
+                                    <div className="flex items-center gap-3 text-brand-primary mb-2">
+                                        <AlertCircle className="w-4 h-4" />
+                                        <span className="text-xs font-bold uppercase tracking-wider">Atenção</span>
                                     </div>
-                                ))}
+                                    <p className="text-xs text-neutral-300">
+                                        As atualizações de plano levam aproximadamente 2 minutos para serem refletidas no dashboard após a confirmação do pagamento.
+                                    </p>
+                                </div>
                             </div>
 
-                            <button className="mt-6 w-full py-3 border border-white/10 rounded-xl text-sm font-medium text-neutral-300 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-center gap-2">
-                                <Plus className="w-4 h-4" /> Adicionar forma de pagamento
+                            <button
+                                onClick={() => window.open('https://customer.kiwify.com.br', '_blank')}
+                                className="mt-6 w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm font-bold text-white transition-colors flex items-center justify-center gap-2"
+                            >
+                                Acessar Minha Conta Kiwify
                             </button>
                         </div>
 
-                        {/* Invoice History */}
+                        {/* FAQ or Tips Card */}
                         <div className="bg-brand-dark-lighter border border-white/5 rounded-2xl p-6 flex flex-col">
                             <div className="flex items-center gap-3 mb-6">
-                                <Download className="w-5 h-5 text-neutral-400" />
-                                <h3 className="text-lg font-bold text-white">Histórico de faturas</h3>
+                                <Activity className="w-5 h-5 text-neutral-400" />
+                                <h3 className="text-lg font-bold text-white">Dicas de Consumo</h3>
                             </div>
 
-                            <div className="space-y-2 flex-1 relative">
-                                {invoices.map((invoice) => (
-                                    <div key={invoice.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors group">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-8 h-6 bg-neutral-800 rounded flex items-center justify-center relative overflow-hidden shrink-0">
-                                                <div className="absolute left-1 w-3.5 h-3.5 bg-red-500 rounded-full opacity-80 mix-blend-screen"></div>
-                                                <div className="absolute right-1 w-3.5 h-3.5 bg-yellow-500 rounded-full opacity-80 mix-blend-screen"></div>
-                                            </div>
-                                            <span className="text-sm text-neutral-300 w-24">{invoice.date}</span>
-                                            <span className="text-sm font-medium text-white">{invoice.amount}</span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <span className="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-2.5 py-1 rounded border border-emerald-500/20">{invoice.status}</span>
-                                            <button className="text-brand-primary text-sm font-bold hover:text-brand-primary-light transition-colors opacity-0 group-hover:opacity-100">PDF</button>
-                                        </div>
-                                    </div>
-                                ))}
-                                {/* Gradient fade for scrolling if many invoices */}
-                                <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-brand-dark-lighter to-transparent pointer-events-none"></div>
+                            <div className="space-y-4">
+                                <div className="p-4 bg-white/5 rounded-xl">
+                                    <h4 className="text-sm font-bold text-white mb-1">Como economizar banda?</h4>
+                                    <p className="text-xs text-neutral-400">Utilize nosso player inteligente que ajusta a qualidade automaticamente de acordo com a conexão do espectador.</p>
+                                </div>
+                                <div className="p-4 bg-white/5 rounded-xl">
+                                    <h4 className="text-sm font-bold text-white mb-1">Limite de vídeos</h4>
+                                    <p className="text-xs text-neutral-400">Você está usando **{usage.videos}** vídeos do seu limite de **{planSettings.maxVideos === Infinity ? 'Ilimitados' : planSettings.maxVideos}**. </p>
+                                </div>
                             </div>
 
-                            <button className="mt-4 text-brand-primary text-sm font-bold hover:underline transition-all text-left w-fit self-start">
-                                Ver mais faturas
-                            </button>
+                            <div className="mt-auto pt-6 text-center">
+                                <button className="text-brand-primary text-xs font-bold hover:underline" onClick={() => window.open('https://hostfy.pro', '_blank')}>Deseja aumentar seu limite? Fale conosco.</button>
+                            </div>
                         </div>
-
                     </div>
                 </div>
             )}

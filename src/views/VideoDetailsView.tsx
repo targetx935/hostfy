@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useMemo, memo } from 'react';
 import { supabase } from '../lib/supabase';
 import { CustomPlayer } from '../components/CustomPlayer';
-import { ArrowLeft, Check, Copy, Shield, Image as ImageIcon, Loader2, Users, Palette, Settings2, Rocket, Lock, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Shield, Image as ImageIcon, Loader2, Users, Palette, Settings2, Rocket, Lock, ChevronRight, Star } from 'lucide-react';
+import { getPlanSettings } from '../lib/planLimits';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -57,7 +58,8 @@ const LocalSlider = memo(({ label, value, min, max, unit, onChange, title }: any
     );
 });
 
-export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate }: any) => {
+export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, userPlan = 'trial' }: any) => {
+    const planSettings = getPlanSettings(userPlan);
     const navigate = useNavigate();
     const [copied, setCopied] = useState(false);
     const [uploadingThumb, setUploadingThumb] = useState(false);
@@ -604,24 +606,44 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate }: an
                                                     {/* social proof */}
                                                     <div className="pt-6 border-t border-white/5 space-y-4">
                                                         <div className="flex items-center justify-between">
-                                                            <div className="flex flex-col">
-                                                                <span className="text-sm font-bold text-white flex items-center gap-2">
-                                                                    <Users className="w-3.5 h-3.5 text-brand-primary" /> Social Proof (Ao Vivo)
-                                                                </span>
-                                                                <span className="text-[10px] text-neutral-500">Mostra "X pessoas assistindo" agora</span>
-                                                            </div>
-                                                            <Switch checked={settings.social_proof_enabled || false} onChange={(val: boolean) => updateSetting('social_proof_enabled', val)} />
+                                                            <span className="text-sm font-bold text-white flex items-center gap-2">
+                                                                <Users className="w-3.5 h-3.5 text-brand-primary" /> Social Proof (Ao Vivo)
+                                                                {!planSettings.features.socialProof && <Star className="w-3 h-3 text-brand-primary fill-brand-primary" />}
+                                                            </span>
+                                                            <span className="text-[10px] text-neutral-500">Mostra "X pessoas assistindo" agora</span>
                                                         </div>
+                                                        <Switch
+                                                            checked={settings.social_proof_enabled || false}
+                                                            onChange={(val: boolean) => {
+                                                                if (!planSettings.features.socialProof) {
+                                                                    showToast('Social Proof é um recurso exclusivo do plano PRO.');
+                                                                    return;
+                                                                }
+                                                                updateSetting('social_proof_enabled', val);
+                                                            }}
+                                                        />
                                                     </div>
 
                                                     {/* lead capture */}
                                                     <div className="pt-6 border-t border-white/5 space-y-4">
                                                         <div className="flex items-center justify-between">
                                                             <div className="flex flex-col">
-                                                                <span className="text-sm font-bold text-emerald-400">Lead Capture (Email Gate)</span>
+                                                                <span className="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                                                                    Lead Capture (Email Gate)
+                                                                    {!planSettings.features.leadCapture && <Star className="w-3 h-3 text-emerald-400 fill-emerald-400" />}
+                                                                </span>
                                                                 <span className="text-[10px] text-neutral-500">Trava o vídeo e pede o e-mail</span>
                                                             </div>
-                                                            <Switch checked={settings.lead_capture_enabled || false} onChange={(val: boolean) => updateSetting('lead_capture_enabled', val)} />
+                                                            <Switch
+                                                                checked={settings.lead_capture_enabled || false}
+                                                                onChange={(val: boolean) => {
+                                                                    if (!planSettings.features.leadCapture) {
+                                                                        showToast('Lead Capture é um recurso exclusivo do plano PRO.');
+                                                                        return;
+                                                                    }
+                                                                    updateSetting('lead_capture_enabled', val);
+                                                                }}
+                                                            />
                                                         </div>
 
                                                         {settings.lead_capture_enabled && (
@@ -655,10 +677,22 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate }: an
                                                     <div className="space-y-4">
                                                         <div className="flex items-start justify-between">
                                                             <div className="flex flex-col pr-4">
-                                                                <span className="text-sm font-bold text-white">Marca d'Água Pro (Anti-Pirataria)</span>
+                                                                <span className="text-sm font-bold text-white flex items-center gap-2">
+                                                                    Marca d'Água Pro (Anti-Pirataria)
+                                                                    {!planSettings.features.advancedAnalytics && <Star className="w-3 h-3 text-brand-primary fill-brand-primary" />}
+                                                                </span>
                                                                 <span className="text-[10px] text-neutral-500 mt-1">Exibe o e-mail ou IP do espectador flutuando na tela para inibir gravações ilegais.</span>
                                                             </div>
-                                                            <Switch checked={settings.watermark_enabled || false} onChange={(val: boolean) => updateSetting('watermark_enabled', val)} />
+                                                            <Switch
+                                                                checked={settings.watermark_enabled || false}
+                                                                onChange={(val: boolean) => {
+                                                                    if (!planSettings.features.advancedAnalytics) {
+                                                                        showToast('Marca d\'Água dinâmica exige plano PRO.');
+                                                                        return;
+                                                                    }
+                                                                    updateSetting('watermark_enabled', val);
+                                                                }}
+                                                            />
                                                         </div>
 
                                                         {settings.watermark_enabled && (

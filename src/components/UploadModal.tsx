@@ -1,12 +1,15 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { UploadCloud, X, Film, AlertCircle, Loader2, CheckCircle2, ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { getPlanSettings } from '../lib/planLimits';
 
 interface UploadModalProps {
     onClose: () => void;
     onSuccess: () => void;
     showToast: (msg: string) => void;
     folders: any[];
+    videoCount: number;
+    userPlan?: string;
 }
 
 interface FileWithStatus {
@@ -74,7 +77,8 @@ const generateVideoThumbnail = (file: File): Promise<File | null> => {
     });
 };
 
-export function UploadModal({ onClose, onSuccess, showToast, folders }: UploadModalProps) {
+export function UploadModal({ onClose, onSuccess, showToast, folders, videoCount, userPlan = 'trial' }: UploadModalProps) {
+    const planSettings = getPlanSettings(userPlan);
     const [files, setFiles] = useState<FileWithStatus[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [globalFolderId, setGlobalFolderId] = useState<string>('');
@@ -87,6 +91,12 @@ export function UploadModal({ onClose, onSuccess, showToast, folders }: UploadMo
         const validFiles: FileWithStatus[] = [];
 
         Array.from(newFiles).forEach(file => {
+            const currentTotal = videoCount + files.length + validFiles.length;
+            if (currentTotal >= planSettings.maxVideos) {
+                showToast(`Limite do plano atingido (${planSettings.maxVideos} vídeos). Faça upgrade para subir mais.`);
+                return;
+            }
+
             if (file.type.startsWith('video/')) {
                 const id = Math.random().toString(36).substring(7);
                 validFiles.push({

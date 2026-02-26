@@ -26,12 +26,22 @@ export function Auth({ onLogin }: { onLogin: () => void }) {
                 if (signInError) throw signInError;
                 onLogin();
             } else {
+                // Generate simple browser fingerprint
+                const fingerprint = btoa(JSON.stringify({
+                    ua: navigator.userAgent,
+                    sw: screen.width,
+                    sh: screen.height,
+                    plat: navigator.platform,
+                    lang: navigator.language
+                })).slice(0, 100);
+
                 const { data, error: signUpError } = await supabase.auth.signUp({
                     email,
                     password,
                     options: {
                         data: {
                             full_name: fullName,
+                            browser_fingerprint: fingerprint,
                         },
                     },
                 });

@@ -12,6 +12,7 @@ export const AdminView = ({ onBack }: { onBack: () => void }) => {
         totalPlays: 0,
         totalLeads: 0,
         totalBandwidthGB: 0,
+        totalStorageGB: 0,
         recentSignups: 0,
         totalRevenue: 0
     });
@@ -68,12 +69,7 @@ export const AdminView = ({ onBack }: { onBack: () => void }) => {
                 .from('videos')
                 .select('id, plays, user_id');
 
-            // 3. Fetch session data for bandwidth estimation
-            const { data: allSessions } = await supabase
-                .from('video_sessions')
-                .select('max_time_watched');
-
-            // 4. Fetch leads
+            // 3. Fetch leads
             const { data: allLeads } = await supabase
                 .from('video_leads')
                 .select('id, user_id');
@@ -81,10 +77,8 @@ export const AdminView = ({ onBack }: { onBack: () => void }) => {
             if (profiles && allVideos) {
                 const totalPlays = allVideos.reduce((acc, v) => acc + (v.plays || 0), 0);
 
-                // Bandwidth estimation: 
-                // Assuming average bitrate of 2.5 Mbps (approx 1GB per hour of watch time)
-                const totalSeconds = allSessions?.reduce((acc, s) => acc + (s.max_time_watched || 0), 0) || 0;
-                const totalBandwidthGB = (totalSeconds / 3600) * 1.1; // 1.1GB per hour factor
+                const totalBandwidthGB = profiles.reduce((acc, p) => acc + (p.current_bandwidth_gb || 0), 0);
+                const totalStorageGB = profiles.reduce((acc, p) => acc + (p.current_storage_gb || 0), 0);
 
                 // Revenue calculation based on new plans
                 // Basic: R$ 49,90, Pro: R$ 129,90, Ultra: R$ 249,90
@@ -116,6 +110,7 @@ export const AdminView = ({ onBack }: { onBack: () => void }) => {
                     totalPlays: totalPlays,
                     totalLeads: allLeads?.length || 0,
                     totalBandwidthGB: parseFloat(totalBandwidthGB.toFixed(2)),
+                    totalStorageGB: parseFloat(totalStorageGB.toFixed(2)),
                     totalRevenue: totalRevenue,
                     recentSignups: profiles.filter(p => {
                         const date = new Date(p.created_at);
@@ -245,6 +240,17 @@ export const AdminView = ({ onBack }: { onBack: () => void }) => {
                     <h3 className="text-3xl font-black text-white leading-none">{stats.totalBandwidthGB} GB</h3>
                 </div>
 
+                <div className="bg-brand-dark-lighter/40 backdrop-blur-xl border border-white/5 p-6 rounded-3xl group hover:border-amber-500/30 transition-all duration-500 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 blur-2xl rounded-full -translate-y-12 translate-x-12"></div>
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center border border-amber-500/20 group-hover:scale-110 transition-transform duration-500">
+                            <Shield className="w-6 h-6 text-amber-400" />
+                        </div>
+                    </div>
+                    <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest mb-1">Armazenamento (Mux)</p>
+                    <h3 className="text-3xl font-black text-white leading-none">{stats.totalStorageGB.toFixed(2)} GB</h3>
+                </div>
+
                 <div className="bg-brand-dark-lighter/40 backdrop-blur-xl border border-white/5 p-6 rounded-3xl group hover:border-emerald-500/30 transition-all duration-500 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-2xl rounded-full -translate-y-12 translate-x-12"></div>
                     <div className="flex justify-between items-start mb-4">
@@ -311,7 +317,7 @@ export const AdminView = ({ onBack }: { onBack: () => void }) => {
                                         <div className="flex flex-col gap-1.5 align-start">
                                             <div className="flex items-center gap-2">
                                                 <select
-                                                    value={user.plan?.toLowerCase() || 'free'}
+                                                    value={user.plan?.toLowerCase() || 'trial'}
                                                     onChange={(e) => handleUpdatePlan(user.id, e.target.value)}
                                                     disabled={updatingUserId === user.id}
                                                     className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border bg-transparent cursor-pointer outline-none transition-all ${user.plan === 'pro' || user.plan === 'ultra' || user.plan === 'basic'
