@@ -198,12 +198,19 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
         'Suporte Prioritário'
     ].slice(0, 4); // Limit to 4 for card aesthetics
 
+    const formatPrice = (price: number) => {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+        }).format(price);
+    };
+
     const currentPlan = {
         name: planSettings.name || 'Plano PRO',
-        price: profileData?.plan === 'basic' ? 'R$ 49,90' : profileData?.plan === 'ultra' ? 'R$ 297,00' : 'R$ 129,90',
+        price: formatPrice(planSettings.price),
         nextBilling: '28 de março de 2026', // Ideally fetched from Kiwify
         playsUsed: usage.plays,
-        playsTotal: planSettings.maxStreamingHours * 10, // Rough estimate if we don't have play limits
+        playsTotal: planSettings.maxPlays,
         features: activeFeatures
     };
 

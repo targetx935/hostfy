@@ -3,6 +3,8 @@ export interface PlanSettings {
     name: string;
     maxVideos: number;
     maxStreamingHours: number;
+    maxPlays: number;
+    price: number;
     features: {
         leadCapture: boolean;
         socialProof: boolean;
@@ -30,6 +32,8 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         name: 'Teste Grátis',
         maxVideos: 1,
         maxStreamingHours: 5,
+        maxPlays: 1000,
+        price: 0,
         features: {
             leadCapture: false,
             socialProof: false,
@@ -43,6 +47,8 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         name: 'Basic',
         maxVideos: 10,
         maxStreamingHours: 100,
+        maxPlays: 10000,
+        price: 49.90,
         features: {
             leadCapture: true,
             socialProof: false,
@@ -56,6 +62,8 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         name: 'PRO',
         maxVideos: 50,
         maxStreamingHours: 500,
+        maxPlays: 50000,
+        price: 129.90,
         features: {
             leadCapture: true,
             socialProof: true,
@@ -69,6 +77,8 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         name: 'Ultra',
         maxVideos: Infinity,
         maxStreamingHours: 2000,
+        maxPlays: 200000,
+        price: 297.00,
         features: {
             leadCapture: true,
             socialProof: true,
