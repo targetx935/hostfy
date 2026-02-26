@@ -625,9 +625,9 @@ function App() {
 
   const navItems = [
     { id: 'videos', label: 'Meus vídeos', icon: Video },
-    { id: 'leads', label: 'Leads', icon: Users, restricted: !planSettings.features.leadCapture },
-    { id: 'ab_tests', label: 'Testes A/B', icon: Beaker },
-    { id: 'security', label: 'Segurança', icon: Shield },
+    ...(planSettings.features.leadCapture ? [{ id: 'leads', label: 'Leads', icon: Users }] : []),
+    ...(planSettings.features.advancedAnalytics ? [{ id: 'ab_tests', label: 'Testes A/B', icon: Beaker }] : []),
+    ...(planSettings.features.domainWhitelist ? [{ id: 'security', label: 'Segurança', icon: Shield }] : []),
     { id: 'settings', label: 'Configurações', icon: Settings },
     { id: 'partners', label: 'Seja um parceiro', icon: Users },
     ...(userProfile?.is_admin ? [{ id: 'admin', label: 'Master Admin', icon: Crown }] : []),
@@ -761,11 +761,8 @@ function App() {
             <React.Fragment key={item.id}>
               <Link
                 to={item.id === 'videos' ? '/' : `/${item.id.replace('_', '-')}`}
-                onClick={(e) => {
-                  if (item.restricted) {
-                    e.preventDefault();
-                    showToast(`O recurso "${item.label}" exige plano PRO ou superior.`);
-                  }
+                onClick={() => {
+                  // Restricted items are now filtered out, so we don't need the preventDefault block
                 }}
                 className={`flex items-center ${isSidebarCollapsed ? 'justify-center p-3' : 'gap-3 px-3 py-3'} rounded-lg font-medium transition-all w-full text-left cursor-pointer relative
                    ${item.id === 'admin'
@@ -773,7 +770,6 @@ function App() {
                     : location.pathname === (item.id === 'videos' ? '/' : `/${item.id.replace('_', '-')}`)
                       ? 'bg-brand-primary/10 text-brand-primary'
                       : 'hover:bg-white/5 text-neutral-400 hover:text-neutral-100'}
-                  ${item.restricted ? 'opacity-50 grayscale select-none' : ''}
                  `}
                 title={isSidebarCollapsed ? item.label : undefined}
               >
@@ -783,9 +779,6 @@ function App() {
                     {item.label}
                     {item.id === 'admin' && <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>}
                   </span>
-                )}
-                {item.restricted && !isSidebarCollapsed && (
-                  <Shield className="w-3.5 h-3.5 absolute right-3 text-brand-primary opacity-80" />
                 )}
               </Link>
               {item.id === 'ab_tests' && <div className="my-2 border-t border-white/5"></div>}

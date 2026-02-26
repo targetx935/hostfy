@@ -389,27 +389,31 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                                         <ChevronRight className="w-4 h-4 text-neutral-600" />
                                     </button>
 
-                                    <button
-                                        onClick={() => setActiveSubView('security')}
-                                        className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors group"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20 group-hover:scale-110 transition-transform">
-                                                <Lock className="w-5 h-5 text-purple-400" />
+                                    {planSettings.features.watermark && (
+                                        <button
+                                            onClick={() => setActiveSubView('security')}
+                                            className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors group"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20 group-hover:scale-110 transition-transform">
+                                                    <Lock className="w-5 h-5 text-purple-400" />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="text-sm font-bold text-white">Segurança & DRM</p>
+                                                    <p className="text-[10px] text-neutral-500">Proteção contra pirataria</p>
+                                                </div>
                                             </div>
-                                            <div className="text-left">
-                                                <p className="text-sm font-bold text-white">Segurança & DRM</p>
-                                                <p className="text-[10px] text-neutral-500">Proteção contra pirataria</p>
-                                            </div>
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 text-neutral-600" />
-                                    </button>
+                                            <ChevronRight className="w-4 h-4 text-neutral-600" />
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="p-4 border-t border-white/5">
-                                    <button className="w-full bg-brand-primary hover:bg-brand-primary-light text-white text-sm font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(232,42,88,0.2)] active:scale-95" onClick={() => navigate(`/video/${video.id}/analytics`)}>
-                                        Ver Analytics Completo
-                                    </button>
-                                </div>
+                                {planSettings.features.advancedAnalytics && (
+                                    <div className="p-4 border-t border-white/5">
+                                        <button className="w-full bg-brand-primary hover:bg-brand-primary-light text-white text-sm font-bold py-3 rounded-xl transition-all shadow-[0_0_20px_rgba(232,42,88,0.2)] active:scale-95" onClick={() => navigate(`/video/${video.id}/analytics`)}>
+                                            Ver Analytics Completo
+                                        </button>
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <div className="flex flex-col h-full animate-[fadeIn_0.3s_ease-out]">
