@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Check, Loader2, Camera, User, CreditCard, Activity, DollarSign, Download, Plus, AlertCircle, TrendingUp } from 'lucide-react';
+import { Check, Loader2, Camera, User, CreditCard, Activity, DollarSign, AlertCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPlanSettings } from '../lib/planLimits';
 
@@ -9,7 +9,6 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
     const initialTab = location.state?.tab === 'conta' ? 'conta' : 'financeiro';
     const [activeTab, setActiveTab] = useState<'financeiro' | 'conta'>(initialTab);
 
-    const [loading, setLoading] = useState(true);
     const [usage, setUsage] = useState({
         plays: 0,
         videos: 0
@@ -32,7 +31,6 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
 
     const fetchData = async () => {
         try {
-            setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
@@ -70,7 +68,6 @@ export const SettingsView = ({ showToast }: { showToast?: (msg: string) => void 
         } catch (err: any) {
             console.error('Error fetching settings data:', err);
         } finally {
-            setLoading(false);
         }
     };
 
