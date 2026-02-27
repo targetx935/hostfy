@@ -35,7 +35,7 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
     }, []);
 
     const handleClose = useCallback(() => {
-        if (isUploadingAny) {
+        if (uploadStep === 'uploading') {
             if (window.confirm('Um upload está em andamento. Deseja realmente cancelar?')) {
                 onClose();
                 resetModal();
@@ -44,7 +44,7 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
             onClose();
             resetModal();
         }
-    }, [isUploadingAny, onClose, resetModal]);
+    }, [uploadStep, onClose, resetModal]);
 
     const onFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFiles = Array.from(e.target.files || []);
