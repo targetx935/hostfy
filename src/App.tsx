@@ -248,7 +248,10 @@ function App() {
       // Fetch folders and videos in parallel
       const [foldersResponse, videosResponse] = await Promise.all([
         supabase.from('folders').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }),
-        supabase.from('videos').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
+        // Admins can fetch all videos to calculate global stats, but we will filter for the list
+        userProfile?.is_admin
+          ? supabase.from('videos').select('*').order('created_at', { ascending: false })
+          : supabase.from('videos').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
       ]);
 
       if (foldersResponse.error) throw foldersResponse.error;
@@ -266,7 +269,9 @@ function App() {
           }
           return { ...v, computed_thumbnail: thumb };
         });
-        setVideos(optimizedVideos);
+        // Filter for personal library list (to avoid "ghost videos")
+        const personalVideos = optimizedVideos.filter(v => v.user_id === session.user.id);
+        setVideos(personalVideos);
 
         // Fetch Global Analytics Mega Graph data
         try {
@@ -1078,7 +1083,7 @@ function App() {
               <Route path="/" element={
                 <div className="animate-[fadeIn_0.5s_ease-out]">
                   {/* Mega Graph Dashboard Header */}
-                  {videos.length > 0 && !loadingVideos && (
+                  {(videos.length > 0 || userProfile?.is_admin) && !loadingVideos && (
                     <div className="mb-10 bg-gradient-to-br from-brand-dark to-black border border-white/5 rounded-3xl p-8 relative overflow-hidden shadow-2xl">
                       {/* Background Effects */}
                       <div className="absolute top-0 right-0 w-96 h-96 bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
