@@ -247,8 +247,8 @@ function App() {
     try {
       // Fetch folders and videos in parallel
       const [foldersResponse, videosResponse] = await Promise.all([
-        supabase.from('folders').select('*').order('created_at', { ascending: false }),
-        supabase.from('videos').select('*').order('created_at', { ascending: false })
+        supabase.from('folders').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }),
+        supabase.from('videos').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
       ]);
 
       if (foldersResponse.error) throw foldersResponse.error;

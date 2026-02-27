@@ -131,7 +131,12 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                     }
                 });
 
-                if (edgeError || !data?.url) throw new Error(edgeError?.message || 'Falha ao obter URL de upload');
+                if (edgeError) {
+                    const detailedError = (edgeError as any).error || edgeError.message;
+                    throw new Error(detailedError || 'Falha ao obter URL de upload');
+                }
+
+                if (!data?.url) throw new Error('Falha ao obter URL de upload (Mux)');
 
                 updateFileProps(fileObj.id, { progress: 30, muxAssetId: data.assetId });
 
