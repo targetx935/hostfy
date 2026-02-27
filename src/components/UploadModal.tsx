@@ -78,14 +78,14 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: profile } = await supabase.from('profiles').select('plan').eq('id', user.id).single();
+            const { data: profile } = await supabase.from('profiles').select('plan, is_admin').eq('id', user.id).single();
             const planSettings = getPlanSettings(profile?.plan || 'trial');
 
             const { count } = await supabase.from('videos').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
             const currentVideos = count || 0;
 
-            if (currentVideos + files.length > planSettings.maxVideos) {
-                if (showToast) showToast(`Limite do plano atingido ($planSettings.maxVideos vídeos). Faça upgrade para subir mais.`);
+            if (!profile?.is_admin && currentVideos + files.length > planSettings.maxVideos) {
+                if (showToast) showToast(`Limite do plano atingido (${planSettings.maxVideos} vídeos). Faça upgrade para subir mais.`);
                 return;
             }
         } catch (err) {

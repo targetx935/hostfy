@@ -669,7 +669,7 @@ function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-brand-primary text-white px-6 py-3 rounded-lg shadow-[0_10px_40px_rgba(232,42,88,0.5)] flex items-center z-50 animate-[fadeIn_0.3s_ease-out]">
+        <div className="fixed bottom-6 right-6 bg-brand-primary text-white px-6 py-3 rounded-lg shadow-[0_10px_40px_rgba(232,42,88,0.5)] flex items-center z-[110] animate-[fadeIn_0.3s_ease-out]">
           <span className="font-medium text-sm">{toast}</span>
         </div>
       )}
