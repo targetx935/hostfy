@@ -132,8 +132,20 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                 });
 
                 if (edgeError) {
-                    const detailedError = (edgeError as any).error || edgeError.message;
-                    throw new Error(detailedError || 'Falha ao obter URL de upload');
+                    console.error('Edge Function Error:', edgeError);
+                    let errMsg = edgeError.message;
+
+                    // Supabase FunctionsHttpError usually has the response in context
+                    if ((edgeError as any).context && typeof (edgeError as any).context.json === 'function') {
+                        try {
+                            const body = await (edgeError as any).context.json();
+                            errMsg = body.error || body.message || errMsg;
+                        } catch (e) {
+                            console.error('Failed to parse error body:', e);
+                        }
+                    }
+
+                    throw new Error(errMsg || 'Falha ao obter URL de upload');
                 }
 
                 if (!data?.url) throw new Error('Falha ao obter URL de upload (Mux)');
