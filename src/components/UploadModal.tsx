@@ -145,6 +145,50 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                         }
                     }
 
+                    // FALLBACK: Se o erro for "Invalid JWT", tentar chamada manual com a chave anon
+                    if (errMsg.includes('Invalid JWT')) {
+                        console.warn('Attempting manual fetch fallback due to Invalid JWT...');
+                        try {
+                            const { data: sessionData } = await supabase.auth.getSession();
+                            const token = sessionData.session?.access_token || (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+
+                            const manualResponse = await fetch(`${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/get-mux-upload-url`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                    filename: fileObj.file.name,
+                                    videoId: videoId,
+                                    filePath: ""
+                                })
+                            });
+
+                            if (manualResponse.ok) {
+                                const manualData = await manualResponse.json();
+                                updateFileProps(fileObj.id, { progress: 30, muxAssetId: manualData.assetId });
+                                // Prosseguir para o upload do Mux
+                                const uploadResponse = await fetch(manualData.url, {
+                                    method: 'PUT',
+                                    body: fileObj.file,
+                                    headers: { 'Content-Type': fileObj.file.type }
+                                });
+                                if (!uploadResponse.ok) throw new Error('Falha no upload para Mux (Manual)');
+                                updateFileProps(fileObj.id, { status: 'processing', progress: 50 });
+                                successCount++;
+                                continue; // Vai para o próximo arquivo ou termina
+                            } else {
+                                const errorBody = await manualResponse.text();
+                                console.error('Manual fallback also failed:', manualResponse.status, errorBody);
+                                throw new Error(`Manual call failed: ${errorBody || manualResponse.statusText}`);
+                            }
+                        } catch (manualErr: any) {
+                            console.error('Manual fetch error:', manualErr);
+                            throw new Error('Falha crítica de autenticação (JWT Inválido)');
+                        }
+                    }
+
                     throw new Error(errMsg || 'Falha ao obter URL de upload');
                 }
 
