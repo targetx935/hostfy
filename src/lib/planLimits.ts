@@ -31,8 +31,8 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
     trial: {
         name: 'Teste Grátis',
         maxVideos: 1,
-        maxStreamingHours: 5,
-        maxPlays: 1000,
+        maxStreamingHours: 1,
+        maxPlays: 500,
         price: 0,
         features: {
             leadCapture: false,
@@ -44,11 +44,11 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         },
     },
     basic: {
-        name: 'Basic',
-        maxVideos: 10,
-        maxStreamingHours: 100,
-        maxPlays: 10000,
-        price: 49.90,
+        name: 'Starter',
+        maxVideos: 5,
+        maxStreamingHours: 50,
+        maxPlays: 2000,
+        price: 49.00,
         features: {
             leadCapture: true,
             socialProof: false,
@@ -60,10 +60,10 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
     },
     pro: {
         name: 'PRO',
-        maxVideos: 50,
-        maxStreamingHours: 500,
-        maxPlays: 50000,
-        price: 129.90,
+        maxVideos: 15,
+        maxStreamingHours: 200,
+        maxPlays: 6000,
+        price: 97.00,
         features: {
             leadCapture: true,
             socialProof: true,
@@ -74,11 +74,11 @@ export const PLAN_LIMITS: Record<string, PlanSettings> = {
         },
     },
     ultra: {
-        name: 'Ultra',
-        maxVideos: Infinity,
-        maxStreamingHours: 2000,
-        maxPlays: 200000,
-        price: 297.00,
+        name: 'Elite',
+        maxVideos: 50,
+        maxStreamingHours: 800,
+        maxPlays: 25000,
+        price: 247.00,
         features: {
             leadCapture: true,
             socialProof: true,
