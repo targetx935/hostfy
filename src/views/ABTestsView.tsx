@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Beaker, X, Copy, BarChart2, CheckCircle2 } from 'lucide-react';
+import { Beaker, X, Copy, BarChart2, CircleCheck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPlanSettings } from '../lib/planLimits';
 import type { VideoData } from '../types';
@@ -236,7 +236,7 @@ export const ABTestsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
                                     <div className={`bg-brand-dark-lighter border rounded-2xl p-6 relative overflow-hidden transition-all ${((testStats.conversionsA / (testStats.viewsA || 1)) > (testStats.conversionsB / (testStats.viewsB || 1))) ? 'border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'border-white/5 opacity-80'}`}>
                                         {((testStats.conversionsA / (testStats.viewsA || 1)) > (testStats.conversionsB / (testStats.viewsB || 1))) && (
                                             <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg z-10 flex items-center gap-1 shadow-lg shadow-emerald-500/20">
-                                                <CheckCircle2 className="w-3 h-3" /> Campeão
+                                                <CircleCheck className="w-3 h-3" /> Campeão
                                             </div>
                                         )}
                                         <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-primary/5 rounded-full blur-[30px]"></div>
@@ -263,7 +263,7 @@ export const ABTestsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
                                     <div className={`bg-brand-dark-lighter border rounded-2xl p-6 relative overflow-hidden transition-all ${((testStats.conversionsB / (testStats.viewsB || 1)) > (testStats.conversionsA / (testStats.viewsA || 1))) ? 'border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'border-white/5 opacity-80'}`}>
                                         {((testStats.conversionsB / (testStats.viewsB || 1)) > (testStats.conversionsA / (testStats.viewsA || 1))) && (
                                             <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-bl-lg z-10 flex items-center gap-1 shadow-lg shadow-emerald-500/20">
-                                                <CheckCircle2 className="w-3 h-3" /> Campeão
+                                                <CircleCheck className="w-3 h-3" /> Campeão
                                             </div>
                                         )}
                                         <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/5 rounded-full blur-[30px]"></div>

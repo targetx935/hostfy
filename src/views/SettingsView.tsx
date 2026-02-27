@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Check, Loader2, Camera, User, CreditCard, Activity, DollarSign, AlertCircle, TrendingUp } from 'lucide-react';
+import { Check, Loader2, Camera, User, CreditCard, Activity, DollarSign, TrendingUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { getPlanSettings } from '../lib/planLimits';
 

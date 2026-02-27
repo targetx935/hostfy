@@ -356,6 +356,8 @@ ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_time_sec
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_title TEXT DEFAULT 'Identifique-se para continuar';
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_button_text TEXT DEFAULT 'Continuar Assistindo';
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS social_proof_enabled BOOLEAN DEFAULT false;
+ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS resume_overlay_color TEXT;
+ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS exit_intent_overlay_enabled BOOLEAN DEFAULT false;
 
 -- ------------------------------------------------------------------------------------------------
 -- 12. INVOICES (payment history)

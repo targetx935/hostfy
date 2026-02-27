@@ -289,6 +289,8 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                             leadCaptureTitle={settings.lead_capture_title}
                             leadCaptureButtonText={settings.lead_capture_button_text}
                             socialProofEnabled={settings.social_proof_enabled}
+                            resumeOverlayColor={settings.resume_overlay_color}
+                            exitIntentOverlayEnabled={settings.exit_intent_overlay_enabled}
                             onPause={setPausedTime}
                         />
                     </div>
@@ -476,6 +478,24 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                                                                 unit="px"
                                                                 onChange={(val: number) => updateSetting('progress_bar_height', val)}
                                                             />
+                                                            <div className="pt-2">
+                                                                <label className="block text-[10px] text-neutral-500 uppercase font-black tracking-widest mb-1.5 ml-1">Fundo do Overlay (Resume/Pausa)</label>
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="color"
+                                                                        value={settings.resume_overlay_color || settings.primary_color || '#E82A58'}
+                                                                        onChange={(e) => updateSetting('resume_overlay_color', e.target.value)}
+                                                                        className="w-10 h-10 rounded-lg bg-brand-dark border border-white/10 cursor-pointer overflow-hidden p-0"
+                                                                    />
+                                                                    <input
+                                                                        type="text"
+                                                                        value={settings.resume_overlay_color || settings.primary_color || '#E82A58'}
+                                                                        onChange={(e) => updateSetting('resume_overlay_color', e.target.value)}
+                                                                        className="flex-1 bg-brand-dark border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-brand-primary outline-none transition-colors"
+                                                                        placeholder="#HEX"
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -521,6 +541,13 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                                                                 <span className="text-[10px] text-neutral-500">Acelera no início para prender atenção</span>
                                                             </div>
                                                             <Switch checked={settings.smart_progress_bar} onChange={(val: boolean) => updateSetting('smart_progress_bar', val)} />
+                                                        </div>
+                                                        <div className="flex items-center justify-between group">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm text-pink-400 font-bold">Overlay no Exit Intent</span>
+                                                                <span className="text-[10px] text-neutral-500">Exibe o overlay colorido ao sair</span>
+                                                            </div>
+                                                            <Switch checked={settings.exit_intent_overlay_enabled || false} onChange={(val: boolean) => updateSetting('exit_intent_overlay_enabled', val)} />
                                                         </div>
                                                     </div>
                                                 </div>

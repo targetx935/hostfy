@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, memo } from 'react';
 import Hls from 'hls.js';
-import { Play, VolumeX, Volume2 } from 'lucide-react';
+import { Play, VolumeX, Volume2, RotateCcw } from 'lucide-react';
 
 interface CustomPlayerProps {
     videoId?: string;
@@ -33,6 +33,8 @@ interface CustomPlayerProps {
     socialProofEnabled?: boolean;
     onCtaClick?: () => void;
     onPause?: (currentTime: number) => void;
+    resumeOverlayColor?: string;
+    exitIntentOverlayEnabled?: boolean;
 }
 
 export const CustomPlayer = memo(({
@@ -63,7 +65,9 @@ export const CustomPlayer = memo(({
     leadCaptureButtonText = 'Continuar Assistindo',
     socialProofEnabled = false,
     onCtaClick,
-    onPause
+    onPause,
+    resumeOverlayColor = '',
+    exitIntentOverlayEnabled = false
 }: CustomPlayerProps) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -73,6 +77,7 @@ export const CustomPlayer = memo(({
     const [currentTime, setCurrentTime] = useState(0);
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [showResumePrompt, setShowResumePrompt] = useState(false);
+    const [showExitIntentOverlay, setShowExitIntentOverlay] = useState(false);
     const maxTimeWatchedRef = useRef(0);
     const lastPingSecondRef = useRef(-1);
 
@@ -153,18 +158,24 @@ export const CustomPlayer = memo(({
         }
     };
 
-    // Initialize tracking session
+    // Initialize tracking session ID
     useEffect(() => {
         if (!videoId) return;
         // Generate a random session ID for this playback instance
         const newSessionId = crypto.randomUUID();
         setSessionId(newSessionId);
 
-        // Create initial session record
+        // Hide resume prompt if it's a new session and we don't have saved time
+        // Actually, the useEffect at line 121 handles this.
+    }, [videoId]);
+
+    // Create initial session record in DB
+    useEffect(() => {
+        if (!sessionId || !videoId) return;
         import('../lib/supabase').then(({ supabase }) => {
             const createSession = async () => {
                 await supabase.from('video_sessions').insert({
-                    id: newSessionId,
+                    id: sessionId,
                     video_id: videoId,
                     device_type: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop'
                 });
@@ -237,6 +248,7 @@ export const CustomPlayer = memo(({
             if (videoRef.current && !videoRef.current.paused) {
                 videoRef.current.pause();
                 setIsPlaying(false);
+                if (exitIntentOverlayEnabled) setShowExitIntentOverlay(true);
                 if (onPause) onPause(videoRef.current.currentTime);
             }
         };
@@ -410,6 +422,15 @@ export const CustomPlayer = memo(({
                     email: leadEmail,
                     name: leadName
                 });
+
+                // Create a notification for the video owner
+                await supabase.from('notifications').insert({
+                    user_id: videoData.user_id,
+                    title: '🔥 Novo Lead Capturado!',
+                    message: `O e-mail ${leadEmail} acabou de ser capturado no vídeo "${videoId}".`,
+                    type: 'success',
+                    link: '/leads'
+                });
             }
 
             setIsLeadSubmitted(true);
@@ -461,27 +482,62 @@ export const CustomPlayer = memo(({
                     </div>
                 )}
 
-                {/* Resume Playback Prompt Overlay */}
+                {/* Resume Playback Prompt Overlay (High Conversion Vturb Style) */}
                 {showResumePrompt && !isPlaying && (
-                    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/95">
-                        <div className="bg-brand-dark/90 border border-white/10 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center transform animate-[fadeIn_0.3s_ease-out]">
-                            <h3 className="text-xl font-bold text-white mb-2">Continuar de onde parou?</h3>
-                            <p className="text-neutral-400 text-sm mb-6">Parece que você já começou a assistir este vídeo antes.</p>
+                    <div
+                        className="absolute inset-0 z-50 flex flex-col items-center justify-center animate-[fadeIn_0.5s_ease-out]"
+                        style={{ backgroundColor: resumeOverlayColor || primaryColor }}
+                    >
+                        <h2 className="text-white font-black text-2xl md:text-5xl mb-12 drop-shadow-xl text-center px-6">
+                            Você já começou a assistir esse vídeo
+                        </h2>
 
-                            <div className="flex flex-col gap-3">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleResume(true); }}
-                                    className="w-full bg-brand-primary hover:bg-brand-primary-light text-white font-bold py-3 px-6 rounded-xl transition-all shadow-[0_0_15px_rgba(232,42,88,0.3)] hover:shadow-[0_0_25px_rgba(232,42,88,0.5)]"
-                                >
-                                    Continuar Assistindo
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); handleResume(false); }}
-                                    className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium py-3 px-6 rounded-xl transition-colors"
-                                >
-                                    Assistir do Início
-                                </button>
-                            </div>
+                        <div className="flex flex-row items-center justify-center gap-8 md:gap-16">
+                            {/* Continue Button */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleResume(true); }}
+                                className="group flex flex-col items-center gap-4 transition-transform active:scale-95"
+                            >
+                                <div className="w-16 h-16 md:w-24 md:h-24 rounded-full border-2 md:border-4 border-white flex items-center justify-center group-hover:bg-white/10 transition-colors shadow-2xl">
+                                    <Play className="w-8 h-8 md:w-12 md:h-12 text-white fill-white ml-1" />
+                                </div>
+                                <span className="text-white font-bold text-sm md:text-xl drop-shadow-md">Continuar assistindo?</span>
+                            </button>
+
+                            {/* Restart Button */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleResume(false); }}
+                                className="group flex flex-col items-center gap-4 transition-transform active:scale-95"
+                            >
+                                <div className="w-16 h-16 md:w-24 md:h-24 rounded-full border-2 md:border-4 border-white flex items-center justify-center group-hover:bg-white/10 transition-colors shadow-2xl">
+                                    <RotateCcw className="w-8 h-8 md:w-12 md:h-12 text-white" strokeWidth={2.5} />
+                                </div>
+                                <span className="text-white font-bold text-sm md:text-xl drop-shadow-md">Assistir do início?</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Exit Intent Overlay (High Conversion) */}
+                {showExitIntentOverlay && !isPlaying && (
+                    <div
+                        className="absolute inset-0 z-50 flex flex-col items-center justify-center animate-[fadeIn_0.5s_ease-out]"
+                        style={{ backgroundColor: resumeOverlayColor || primaryColor }}
+                    >
+                        <h2 className="text-white font-black text-2xl md:text-5xl mb-12 drop-shadow-xl text-center px-6">
+                            Não vá embora! Continue assistindo...
+                        </h2>
+
+                        <div className="flex flex-col items-center justify-center gap-8">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setShowExitIntentOverlay(false); videoRef.current?.play(); setIsPlaying(true); }}
+                                className="group flex flex-col items-center gap-4 transition-transform active:scale-95"
+                            >
+                                <div className="w-20 h-20 md:w-32 md:h-32 rounded-full border-2 md:border-4 border-white flex items-center justify-center group-hover:bg-white/10 transition-colors shadow-2xl animate-pulse">
+                                    <Play className="w-10 h-10 md:w-16 md:h-16 text-white fill-white ml-2" />
+                                </div>
+                                <span className="text-white font-black text-lg md:text-2xl drop-shadow-md uppercase tracking-tighter">Clique para Continuar</span>
+                            </button>
                         </div>
                     </div>
                 )}
@@ -552,9 +608,24 @@ export const CustomPlayer = memo(({
                        ${showCta ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0 pointer-events-none'}`}
                     >
                         <div className="group/cta relative">
+                            {/* Pulsing rings effect */}
+                            <div className="absolute inset-0 rounded-2xl animate-[ping_3s_infinite] opacity-20 pointer-events-none scale-110" style={{ backgroundColor: primaryColor }}></div>
+                            <div className="absolute inset-0 rounded-2xl animate-[ping_4s_infinite] opacity-10 pointer-events-none scale-125 delay-1000" style={{ backgroundColor: primaryColor }}></div>
+
                             <div className="absolute -inset-1 rounded-2xl blur opacity-30 group-hover/cta:opacity-60 transition duration-1000 group-hover/cta:duration-200" style={{ backgroundColor: primaryColor }}></div>
-                            <a href={ctaUrl || '#'} target={ctaUrl ? '_blank' : '_self'} rel="noreferrer" className="relative w-full text-white font-black text-xl md:text-2xl py-4 md:py-5 px-6 rounded-2xl text-center shadow-2xl cursor-pointer transition-all active:scale-[0.98] border border-white/20 flex flex-col items-center justify-center gap-1 block hover:brightness-110" style={{ backgroundColor: primaryColor }} onClick={handleCtaClick}>
-                                <span>{ctaText || 'QUERO GARANTIR MINHA VAGA AGORA'}</span>
+
+                            <a
+                                href={ctaUrl || '#'}
+                                target={ctaUrl ? '_blank' : '_self'}
+                                rel="noreferrer"
+                                className="relative w-full text-white font-black text-xl md:text-2xl py-4 md:py-5 px-6 rounded-2xl text-center shadow-2xl cursor-pointer transition-all active:scale-[0.98] border border-white/20 flex flex-col items-center justify-center gap-1 block hover:brightness-110 hover:-translate-y-0.5 overflow-hidden"
+                                style={{ backgroundColor: primaryColor }}
+                                onClick={handleCtaClick}
+                            >
+                                {/* Internal shimmer effect */}
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover/cta:animate-[shimmer_1.5s_infinite]"></div>
+
+                                <span className="relative z-10 drop-shadow-md">{ctaText || 'QUERO GARANTIR MINHA VAGA AGORA'}</span>
                             </a>
                         </div>
                     </div>
@@ -590,14 +661,22 @@ export const CustomPlayer = memo(({
             {/* Social Proof Toast */}
             {socialProofEnabled && isPlaying && !showUnmuteOverlay && !isLeadCaptureVisible && (
                 <div className="absolute bottom-6 left-6 z-30 animate-[fadeIn_0.5s_ease-out]">
-                    <div className="bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-3">
-                        <div className="relative">
-                            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping absolute inset-0"></div>
-                            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full relative"></div>
+                    <div className="bg-black/60 backdrop-blur-xl border border-white/20 px-5 py-3 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] flex items-center gap-4 group/social">
+                        <div className="relative flex items-center justify-center">
+                            <div className="w-3 h-3 bg-emerald-500 rounded-full animate-ping absolute inset-0"></div>
+                            <div className="w-3 h-3 bg-emerald-500 rounded-full relative border-2 border-white/20"></div>
                         </div>
-                        <p className="text-white text-xs font-bold">
-                            <span className="text-emerald-400">{socialProofCount}</span> pessoas assistindo agora
-                        </p>
+                        <div className="flex flex-col">
+                            <p className="text-white text-[11px] font-black uppercase tracking-widest leading-none mb-0.5">
+                                <span className="text-emerald-400">{socialProofCount}</span> online agora
+                            </p>
+                            <p className="text-white/40 text-[9px] font-bold uppercase tracking-wider leading-none">
+                                Assistindo ao vivo
+                            </p>
+                        </div>
+                        <div className="ml-2 bg-white/10 p-1.5 rounded-lg opacity-50 group-hover/social:opacity-100 transition-opacity">
+                            <Volume2 className="w-3 h-3 text-white" />
+                        </div>
                     </div>
                 </div>
             )}

@@ -655,6 +655,10 @@ function App() {
           0%, 100% { filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.4)); }
           50% { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.8)); }
         }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
         `}
       </style>
 
@@ -668,14 +672,12 @@ function App() {
       {/* Modals */}
       {showUploadModal && (
         <UploadModal
+          isOpen={showUploadModal}
           onClose={() => setShowUploadModal(false)}
           onSuccess={() => {
             fetchContent();
           }}
           showToast={showToast}
-          folders={folders}
-          videoCount={videos.length}
-          userPlan={userProfile?.plan || 'trial'}
         />
       )}
 
@@ -876,9 +878,9 @@ function App() {
                 })()}
               </span>
             </div>
-            <div className="w-full bg-black/40 h-2.5 rounded-full overflow-hidden border border-white/5">
+            <div className="w-full h-4 rounded-full overflow-hidden bg-white/5 ring-1 ring-white/10 relative">
               <div
-                className="bg-gradient-to-r from-brand-primary via-rose-500 to-amber-400 h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(232,42,88,0.4)]"
+                className="bg-gradient-to-r from-brand-primary via-rose-500 to-amber-400 h-full rounded-full transition-all duration-1000 shadow-[0_0_20px_rgba(232,42,88,0.6)] relative z-10"
                 style={{
                   width: (() => {
                     const totalPlays = videos.reduce((acc, v) => acc + (v.plays || 0), 0);
@@ -889,7 +891,10 @@ function App() {
                     return `${Math.min(100, (totalPlays / limit) * 100)}%`;
                   })()
                 }}
-              ></div>
+              >
+                {/* Shimmer effect inside the bar */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+              </div>
             </div>
           </div>
 
