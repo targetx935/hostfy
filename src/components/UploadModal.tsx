@@ -102,59 +102,65 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
             if (fileObj.status !== 'pending') continue;
 
             try {
-                updateFileProps(fileObj.id, { status: 'uploading', progress: 10 });
+                updateFileProps(fileObj.id, { status: 'uploading', progress: 5 });
 
                 const { data: { user } } = await supabase.auth.getUser();
-                if (!user) throw new Error('User not found');
+                if (!user) throw new Error('Usuário não encontrado');
 
-                // 1. Get Direct Upload URL from Edge Function
+                // 1. Criar registro do vídeo no Supabase (Pendente)
+                // Isso nos dá o ID do vídeo para enviar ao Mux no passthrough
+                const { data: dbVideo, error: dbError } = await supabase.from('videos').insert({
+                    user_id: user.id,
+                    title: fileObj.title,
+                    status: 'processing',
+                    file_size: fileObj.file.size,
+                    duration: 0
+                }).select('id').single();
+
+                if (dbError) throw dbError;
+                const videoId = dbVideo.id;
+
+                updateFileProps(fileObj.id, { progress: 15 });
+
+                // 2. Obter URL de Upload Direto do Edge Function
                 const { data, error: edgeError } = await supabase.functions.invoke('get-mux-upload-url', {
-                    body: { filename: fileObj.file.name }
+                    body: {
+                        filename: fileObj.file.name,
+                        videoId: videoId,
+                        filePath: "" // Não usamos arquivo temporário no Direct Upload
+                    }
                 });
 
-                if (edgeError || !data?.url) throw new Error(edgeError?.message || 'Failed to get upload URL');
+                if (edgeError || !data?.url) throw new Error(edgeError?.message || 'Falha ao obter URL de upload');
 
                 updateFileProps(fileObj.id, { progress: 30, muxAssetId: data.assetId });
 
-                // 2. Upload directly to Mux
+                // 3. Upload direto para o Mux (PUT)
                 const uploadResponse = await fetch(data.url, {
                     method: 'PUT',
                     body: fileObj.file,
                     headers: { 'Content-Type': fileObj.file.type }
                 });
 
-                if (!uploadResponse.ok) throw new Error('Mux upload failed');
-
-                updateFileProps(fileObj.id, { progress: 70, status: 'processing' });
-
-                // 3. Save to Supabase
-                const { error: dbError } = await supabase.from('videos').insert({
-                    user_id: user.id,
-                    title: fileObj.title,
-                    mux_asset_id: data.assetId,
-                    status: 'processing',
-                    file_size: fileObj.file.size,
-                    duration: 0 // Will be updated by webhook
-                });
-
-                if (dbError) throw dbError;
+                if (!uploadResponse.ok) throw new Error('Falha no upload para o servidor de processamento (Mux)');
 
                 updateFileProps(fileObj.id, { progress: 100, status: 'success' });
                 successCount++;
 
             } catch (err: any) {
-                console.error(`Upload error for ${fileObj.file.name}:`, err);
+                console.error(`Erro no upload de ${fileObj.file.name}:`, err);
                 updateFileProps(fileObj.id, { status: 'error', error: err.message });
                 hasErrors = true;
             }
         }
 
+        setIsUploadingAny(false);
+        setUploadStep('finished');
+
         if (successCount > 0) {
             if (showToast) showToast(`${successCount} vídeo(s) enviado(s) com sucesso!`);
             if (onSuccess) onSuccess();
         }
-
-        setUploadStep('finished');
 
         if (!hasErrors) {
             if (showToast) showToast('Todos os uploads foram concluídos com sucesso!');
@@ -334,10 +340,35 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                     {uploadStep === 'finished' && (
                         <div className="space-y-6 text-center py-8">
                             <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <CircleCheck className="w-10 h-10 text-emerald-500" />
+                                {files.some(f => f.status === 'error') ? (
+                                    <CircleAlert className="w-10 h-10 text-red-500" />
+                                ) : (
+                                    <CircleCheck className="w-10 h-10 text-emerald-500" />
+                                )}
                             </div>
-                            <h2 className="text-3xl font-black text-white">Upload finalizado!</h2>
-                            <p className="text-neutral-400 max-w-sm mx-auto">Seus vídeos foram enviados e estão sendo processados pela nossa CDN global. Eles aparecerão no seu painel em alguns segundos.</p>
+                            <h2 className="text-3xl font-black text-white">
+                                {files.every(f => f.status === 'success') ? 'Upload finalizado!' : 'Concluído com avisos'}
+                            </h2>
+                            <p className="text-neutral-400 max-w-sm mx-auto">
+                                {files.some(f => f.status === 'success')
+                                    ? 'Seus vídeos foram enviados e estão sendo processados pela nossa CDN global. Eles aparecerão no seu painel em alguns segundos.'
+                                    : 'Ocorreu um problema ao enviar seus vídeos. Verifique as mensagens de erro abaixo.'}
+                            </p>
+
+                            {files.some(f => f.status === 'error') && (
+                                <div className="mt-8 space-y-3 text-left">
+                                    <h4 className="text-xs font-bold text-red-400 uppercase tracking-wider px-2">Erros encontrados:</h4>
+                                    {files.filter(f => f.status === 'error').map(file => (
+                                        <div key={file.id} className="p-4 bg-red-500/5 border border-red-500/10 rounded-xl flex items-center gap-3">
+                                            <CircleAlert className="w-5 h-5 text-red-500 shrink-0" />
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-white truncate">{file.title}</p>
+                                                <p className="text-xs text-red-400/80">{file.error || 'Erro desconhecido'}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             {successfullyUploadedFiles.length > 0 && (
                                 <div className="mt-12 text-left space-y-4">

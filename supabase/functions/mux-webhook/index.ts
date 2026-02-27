@@ -47,9 +47,9 @@ serve(async (req) => {
 
       const { videoId, filePath } = metadata;
 
-      if (!videoId || !filePath) {
-        console.log("Missing videoId or filePath in passthrough");
-        return new Response("Missing mapping data", { status: 400 });
+      if (!videoId) {
+        console.log("Missing videoId in passthrough");
+        return new Response("Missing videoId", { status: 400 });
       }
 
       const muxUrl = `https://stream.mux.com/${playbackId}.m3u8`;
@@ -101,18 +101,19 @@ serve(async (req) => {
           });
       }
 
-      // 4. THE GOLDEN EGG: Delete the raw, heavy MP4 from Supabase Storage
-      // This saves massive storage costs by keeping only the lightweight entry in DB. Mux holds the video now.
-      const { error: storageError } = await supabaseAdmin
-        .storage
-        .from('videos')
-        .remove([filePath]);
+      // 4. THE GOLDEN EGG: Delete the raw, heavy MP4 from Supabase Storage (if applicable)
+      // This saves massive storage costs. If using direct upload, there is no file to delete.
+      if (filePath) {
+        const { error: storageError } = await supabaseAdmin
+          .storage
+          .from('videos')
+          .remove([filePath]);
 
-      if (storageError) {
-        console.error(`Failed to delete raw MP4 temp file at ${filePath}:`, storageError);
-        // We don't throw here. We still return 200 so Mux doesn't retry unnecessarily. The video is ready.
-      } else {
-        console.log(`Successfully deleted heavy temporary MP4 at ${filePath}. Storage Saved!`);
+        if (storageError) {
+          console.error(`Failed to delete raw MP4 temp file at ${filePath}:`, storageError);
+        } else {
+          console.log(`Successfully deleted heavy temporary MP4 at ${filePath}. Storage Saved!`);
+        }
       }
 
     }
