@@ -793,20 +793,20 @@ function App() {
               <div className="px-4 mb-4">
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3">
                   <div className="flex justify-between items-center mb-1.5">
-                    <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-bold">Consumo de Banda</span>
+                    <span className="text-[10px] uppercase tracking-widest text-neutral-400 font-bold">Uso de Plays</span>
                     <span className="text-[10px] text-brand-primary font-bold">
-                      {Math.floor(((userProfile.current_bandwidth_gb || 0) / (planSettings.maxStreamingHours || 1)) * 100)}%
+                      {Math.floor((videos.reduce((acc, v) => acc + (v.plays || 0), 0) / (planSettings.maxPlays || 1)) * 100)}%
                     </span>
                   </div>
                   <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden mb-1">
                     <div
-                      className={`h-full rounded-full transition-all duration-1000 ${((userProfile.current_bandwidth_gb || 0) / (planSettings.maxStreamingHours || 1)) > 0.9 ? 'bg-red-500' : 'bg-brand-primary'}`}
-                      style={{ width: `${Math.min(100, ((userProfile.current_bandwidth_gb || 0) / (planSettings.maxStreamingHours || 1)) * 100)}%` }}
+                      className={`h-full rounded-full transition-all duration-1000 ${(videos.reduce((acc, v) => acc + (v.plays || 0), 0) / (planSettings.maxPlays || 1)) > 0.9 ? 'bg-red-500' : 'bg-brand-primary'}`}
+                      style={{ width: `${Math.min(100, (videos.reduce((acc, v) => acc + (v.plays || 0), 0) / (planSettings.maxPlays || 1)) * 100)}%` }}
                     />
                   </div>
                   <div className="flex justify-between items-baseline">
-                    <span className="text-[10px] text-neutral-500 font-medium">{(userProfile.current_bandwidth_gb || 0).toFixed(1)} GB</span>
-                    <span className="text-[10px] text-neutral-500 font-medium">limite {planSettings.maxStreamingHours}GB</span>
+                    <span className="text-[10px] text-neutral-500 font-medium">{videos.reduce((acc, v) => acc + (v.plays || 0), 0).toLocaleString('pt-BR')}</span>
+                    <span className="text-[10px] text-neutral-500 font-medium">limite {planSettings.maxPlays.toLocaleString('pt-BR')}</span>
                   </div>
                 </div>
               </div>
