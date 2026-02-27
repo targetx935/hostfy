@@ -35,6 +35,8 @@ interface CustomPlayerProps {
     onPause?: (currentTime: number) => void;
     resumeOverlayColor?: string;
     exitIntentOverlayEnabled?: boolean;
+    smartStartEnabled?: boolean;
+    smartStartSpeed?: number;
 }
 
 export const CustomPlayer = memo(({
@@ -67,7 +69,9 @@ export const CustomPlayer = memo(({
     onCtaClick,
     onPause,
     resumeOverlayColor = '',
-    exitIntentOverlayEnabled = false
+    exitIntentOverlayEnabled = false,
+    smartStartEnabled = false,
+    smartStartSpeed = 1.25
 }: CustomPlayerProps) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -80,6 +84,7 @@ export const CustomPlayer = memo(({
     const [showExitIntentOverlay, setShowExitIntentOverlay] = useState(false);
     const maxTimeWatchedRef = useRef(0);
     const lastPingSecondRef = useRef(-1);
+    const smartStartTriggeredRef = useRef(false);
 
     // Lead Capture State
     const [isLeadCaptureVisible, setIsLeadCaptureVisible] = useState(false);
@@ -272,6 +277,23 @@ export const CustomPlayer = memo(({
             document.removeEventListener('mouseleave', handleMouseLeave);
         };
     }, [exitIntentPause, onPause]);
+
+    // Smart Start Logic (Initial Acceleration)
+    useEffect(() => {
+        if (!smartStartEnabled || !isPlaying || !videoRef.current || smartStartTriggeredRef.current) return;
+
+        const video = videoRef.current;
+        const duration = video.duration || 0;
+
+        // Speed up if we are in the first 30 seconds OR first 10% of the video
+        if (currentTime < 30 || (duration > 0 && currentTime < duration * 0.1)) {
+            video.playbackRate = smartStartSpeed;
+            // No feedback to UI to keep it "stealthy" and effective
+        } else {
+            video.playbackRate = 1.0;
+            smartStartTriggeredRef.current = true; // Only do this once per load
+        }
+    }, [isPlaying, currentTime, smartStartEnabled, smartStartSpeed]);
 
     // Social Proof Fluctuation
     useEffect(() => {

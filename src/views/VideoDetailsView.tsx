@@ -88,7 +88,9 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
         lead_capture_time_seconds: 10,
         lead_capture_title: 'Identifique-se para continuar',
         lead_capture_button_text: 'Continuar Assistindo',
-        social_proof_enabled: false
+        social_proof_enabled: false,
+        smart_start_enabled: false,
+        smart_start_speed: 1.25
     });
     const [loading, setLoading] = useState(true);
     const saveTimeoutRef = useRef<any>(null);
@@ -291,6 +293,8 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                             socialProofEnabled={settings.social_proof_enabled}
                             resumeOverlayColor={settings.resume_overlay_color}
                             exitIntentOverlayEnabled={settings.exit_intent_overlay_enabled}
+                            smartStartEnabled={settings.smart_start_enabled}
+                            smartStartSpeed={settings.smart_start_speed}
                             onPause={setPausedTime}
                         />
                     </div>
@@ -548,6 +552,29 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                                                                 <span className="text-[10px] text-neutral-500">Exibe o overlay colorido ao sair</span>
                                                             </div>
                                                             <Switch checked={settings.exit_intent_overlay_enabled || false} onChange={(val: boolean) => updateSetting('exit_intent_overlay_enabled', val)} />
+                                                        </div>
+
+                                                        <div className="pt-4 border-t border-white/5 space-y-4">
+                                                            <div className="flex items-center justify-between group">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm text-brand-primary font-black uppercase tracking-tighter">Aceleração de Início (Smart Start)</span>
+                                                                    <span className="text-[10px] text-neutral-500">Aumenta a retenção acelerando o começo</span>
+                                                                </div>
+                                                                <Switch checked={settings.smart_start_enabled || false} onChange={(val: boolean) => updateSetting('smart_start_enabled', val)} />
+                                                            </div>
+                                                            {settings.smart_start_enabled && (
+                                                                <div className="animate-[slideDown_0.3s_ease-out]">
+                                                                    <LocalSlider
+                                                                        label="Velocidade Inicial"
+                                                                        value={settings.smart_start_speed || 1.25}
+                                                                        min="1"
+                                                                        max="2"
+                                                                        unit="x"
+                                                                        onChange={(val: number) => updateSetting('smart_start_speed', val)}
+                                                                    />
+                                                                    <p className="text-[9px] text-neutral-500 mt-2 px-1">Recomendado: **1.25x** ou **1.5x**. O vídeo volta para 1x após 30 segundos ou 10% assistido.</p>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
