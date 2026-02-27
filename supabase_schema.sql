@@ -358,6 +358,10 @@ ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS lead_capture_button_t
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS social_proof_enabled BOOLEAN DEFAULT false;
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS resume_overlay_color TEXT;
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS exit_intent_overlay_enabled BOOLEAN DEFAULT false;
+ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS smart_start_enabled BOOLEAN DEFAULT false;
+ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS smart_start_speed NUMERIC DEFAULT 1.25;
+
+ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0;
 
 -- ------------------------------------------------------------------------------------------------
 -- 12. INVOICES (payment history)
