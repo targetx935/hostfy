@@ -152,11 +152,12 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                             const { data: sessionData } = await supabase.auth.getSession();
                             const token = sessionData.session?.access_token || (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
 
-                            const manualResponse = await fetch(`${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/get-mux-upload-url`, {
+                            const manualResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-mux-upload-url`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`
+                                    'Authorization': `Bearer ${token}`,
+                                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
                                 },
                                 body: JSON.stringify({
                                     filename: fileObj.file.name,

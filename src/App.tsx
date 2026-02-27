@@ -68,6 +68,11 @@ function App() {
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
   const [openVideoMenuId, setOpenVideoMenuId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
 
@@ -243,6 +248,10 @@ function App() {
   };
 
   const fetchContent = async () => {
+    if (!session?.user?.id) {
+      console.warn('fetchContent aborted: No active session');
+      return;
+    }
     setLoadingVideos(true);
     try {
       // Fetch folders and videos in parallel
