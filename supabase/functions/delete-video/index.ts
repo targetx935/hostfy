@@ -48,38 +48,34 @@ serve(async (req: Request) => {
             throw new Error("Vídeo não encontrado ou acesso negado.")
         }
 
-        // 2. Delete the Asset from Mux (if it reached Mux)
-        if (video.mux_asset_id) {
-            const muxTokenId = Deno.env.get("MUX_TOKEN_ID")
-            const muxTokenSecret = Deno.env.get("MUX_TOKEN_SECRET")
-            if (muxTokenId && muxTokenSecret) {
-                const muxRes = await fetch(`https://api.mux.com/video/v1/assets/${video.mux_asset_id}`, {
+        // 2. Delete the Video from Bunny CDN
+        if (video.bunny_id && video.bunny_library_id) {
+            const bunnyApiKey = Deno.env.get("BUNNY_API_KEY")
+            if (bunnyApiKey) {
+                const bunnyRes = await fetch(`https://video.bunnycdn.com/library/${video.bunny_library_id}/videos/${video.bunny_id}`, {
                     method: "DELETE",
                     headers: {
-                        Authorization: `Basic ${btoa(`${muxTokenId}:${muxTokenSecret}`)}`,
+                        AccessKey: bunnyApiKey,
                     }
                 })
-                if (!muxRes.ok) {
-                    console.error("Failed to delete Mux asset", await muxRes.text())
-                    // We keep going even if Mux fails, to at least clean our DB
+                if (!bunnyRes.ok) {
+                    console.error("Failed to delete Bunny video", await bunnyRes.text())
+                    // We keep going even if Bunny fails, to at least clean our DB
                 } else {
-                    console.log(`Successfully deleted Mux Asset ${video.mux_asset_id}`)
+                    console.log(`Successfully deleted Bunny Video ${video.bunny_id}`)
                 }
             }
         }
 
-        // 3. Delete raw MP4 from Supabase Storage (if it's still there or webhook failed)
-        // The url looks like: https://[project].supabase.co/storage/v1/object/public/videos/[userId]/[filename.mp4]
-        // Or we scan the bucket using supabaseAdmin.storage.from('videos').list(userId) and find the file matching the ID.
-        // Let's extract the file path from the raw URL if possible.
-        if (video.url && video.url.includes('/storage/v1/object/public/videos/')) {
-            const urlObj = new URL(video.url)
-            const pathParts = urlObj.pathname.split('/videos/')
+        // 3. Delete custom thumbnail from Supabase Storage (if any)
+        if (video.thumbnail_url && video.thumbnail_url.includes('/storage/v1/object/public/thumbnails/')) {
+            const urlObj = new URL(video.thumbnail_url)
+            const pathParts = urlObj.pathname.split('/thumbnails/')
             if (pathParts.length > 1) {
                 const filePath = decodeURIComponent(pathParts[1])
-                const { error: storageErr } = await supabaseAdmin.storage.from('videos').remove([filePath])
-                if (storageErr) console.error("Failed to delete from storage:", storageErr)
-                else console.log(`Deleted raw file: ${filePath}`)
+                const { error: storageErr } = await supabaseAdmin.storage.from('thumbnails').remove([filePath])
+                if (storageErr) console.error("Failed to delete thumbnail from storage:", storageErr)
+                else console.log(`Deleted custom thumbnail: ${filePath}`)
             }
         }
 
