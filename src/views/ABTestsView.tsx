@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { getPlanSettings } from '../lib/planLimits';
 import type { VideoData } from '../types';
 
-export const ABTestsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
+export const ABTestsView = ({ videos: _initialVideos = [], userPlan = 'trial' }: { videos?: VideoData[], userPlan?: string }) => {
     const planSettings = getPlanSettings(userPlan);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [testName, setTestName] = useState('');

@@ -90,7 +90,8 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
         lead_capture_button_text: 'Continuar Assistindo',
         social_proof_enabled: false,
         smart_start_enabled: false,
-        smart_start_speed: 1.25
+        smart_start_speed: 1.25,
+        facebook_pixel_id: ''
     });
     const [loading, setLoading] = useState(true);
     const saveTimeoutRef = useRef<any>(null);
@@ -295,6 +296,7 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                             exitIntentOverlayEnabled={settings.exit_intent_overlay_enabled}
                             smartStartEnabled={settings.smart_start_enabled}
                             smartStartSpeed={settings.smart_start_speed}
+                            facebookPixelId={settings.facebook_pixel_id}
                             onPause={setPausedTime}
                         />
                     </div>
@@ -722,6 +724,40 @@ export const VideoDetailsView = ({ video, onBack, showToast, onVideoUpdate, user
                                                                 </div>
                                                             </div>
                                                         )}
+                                                    </div>
+
+                                                    {/* Facebook Pixel */}
+                                                    <div className="pt-6 border-t border-white/5 space-y-4">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-bold text-blue-400 flex items-center gap-2">
+                                                                    Facebook Pixel ID
+                                                                    {!planSettings.features.advancedAnalytics && <Star className="w-3 h-3 text-blue-400 fill-blue-400" />}
+                                                                </span>
+                                                                <span className="text-[10px] text-neutral-500">Track PageView, Leads e Cliques no CTA</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="animate-[slideDown_0.3s_ease-out]">
+                                                            <input
+                                                                type="text"
+                                                                value={settings.facebook_pixel_id || ''}
+                                                                onBlur={(e) => {
+                                                                    if (!planSettings.features.advancedAnalytics && e.target.value) {
+                                                                        showToast('Facebook Pixel exige plano PRO.');
+                                                                        setSettings({ ...settings, facebook_pixel_id: '' });
+                                                                        return;
+                                                                    }
+                                                                    updateSetting('facebook_pixel_id', e.target.value);
+                                                                }}
+                                                                onChange={(e) => setSettings({ ...settings, facebook_pixel_id: e.target.value })}
+                                                                disabled={!planSettings.features.advancedAnalytics}
+                                                                placeholder="Ex: 1234567890"
+                                                                className="w-full bg-brand-dark border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-brand-primary outline-none transition-colors disabled:opacity-50"
+                                                            />
+                                                            <p className="text-[9px] text-neutral-500 mt-2 px-1 italic">
+                                                                Apenas o ID numérico. Os eventos nativos do Pixel serão disparados automaticamente.
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}

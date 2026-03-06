@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase';
 import { Users, Search, Download, ExternalLink, Mail, Calendar, Video } from 'lucide-react';
 import { getPlanSettings } from '../lib/planLimits';
 
-export const LeadsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
+export const LeadsView = ({ videos: _initialVideos = [], userPlan = 'trial' }: { videos?: any[], userPlan?: string }) => {
     const [leads, setLeads] = useState<any[]>([]);
+    const [videos, setVideos] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const planSettings = getPlanSettings(userPlan);
@@ -26,6 +27,10 @@ export const LeadsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
 
             if (error) throw error;
             setLeads(data || []);
+
+            // Also fetch videos to calculate total plays
+            const { data: vData } = await supabase.from('videos').select('plays');
+            setVideos(vData || []);
         } catch (err) {
             console.error("Error fetching leads:", err);
         } finally {
@@ -142,7 +147,10 @@ export const LeadsView = ({ userPlan = 'trial' }: { userPlan?: string }) => {
                 <div className="bg-brand-dark-lighter border border-white/5 p-6 rounded-2xl">
                     <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-1">Taxa de Conversão Média</p>
                     <h3 className="text-3xl font-black text-brand-primary">
-                        {leads.length > 0 ? "8.4%" : "0.0%"}
+                        {leads.length > 0 ? (() => {
+                            const totalPlays = videos.reduce((acc: number, v: any) => acc + (v.plays || 0), 0);
+                            return totalPlays > 0 ? ((leads.length / totalPlays) * 100).toFixed(1) + '%' : '0.0%';
+                        })() : "0.0%"}
                     </h3>
                 </div>
             </div>

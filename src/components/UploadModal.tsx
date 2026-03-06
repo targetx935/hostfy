@@ -10,9 +10,9 @@ interface FileWithStatus {
     progress: number;
     status: 'pending' | 'uploading' | 'processing' | 'success' | 'error';
     error?: string;
-    muxAssetId?: string;
-    muxPlaybackId?: string;
+    bunnyId?: string;
     thumbUrl?: string;
+    isPolling?: boolean;
 }
 
 interface UploadModalProps {
@@ -108,7 +108,6 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                 if (!user) throw new Error('Usuário não encontrado');
 
                 // 1. Criar registro do vídeo no Supabase (Pendente)
-                // Isso nos dá o ID do vídeo para enviar ao Mux no passthrough
                 const { data: dbVideo, error: dbError } = await supabase.from('videos').insert({
                     user_id: user.id,
                     title: fileObj.title,
@@ -122,92 +121,72 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
 
                 updateFileProps(fileObj.id, { progress: 15 });
 
-                // 2. Obter URL de Upload Direto do Edge Function
-                const { data, error: edgeError } = await supabase.functions.invoke('get-mux-upload-url', {
-                    body: {
-                        filename: fileObj.file.name,
-                        videoId: videoId,
-                        filePath: "" // Não usamos arquivo temporário no Direct Upload
-                    }
+                // 2. Obter Configuração de Upload do Bunny do Edge Function
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+
+                const configResponse = await fetch(`${(import.meta as any).env.VITE_SUPABASE_URL}/functions/v1/get-bunny-upload-config`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'apikey': (import.meta as any).env.VITE_SUPABASE_ANON_KEY
+                    },
+                    body: JSON.stringify({
+                        title: fileObj.title,
+                        videoId: videoId
+                    })
                 });
 
-                if (edgeError) {
-                    console.error('Edge Function Error:', edgeError);
-                    let errMsg = edgeError.message;
+                const configData = await configResponse.json();
 
-                    // Supabase FunctionsHttpError usually has the response in context
-                    if ((edgeError as any).context && typeof (edgeError as any).context.json === 'function') {
-                        try {
-                            const body = await (edgeError as any).context.json();
-                            errMsg = body.error || body.message || errMsg;
-                        } catch (e) {
-                            console.error('Failed to parse error body:', e);
-                        }
-                    }
-
-                    // FALLBACK: Se o erro for "Invalid JWT", tentar chamada manual com a chave anon
-                    if (errMsg.includes('Invalid JWT')) {
-                        console.warn('Attempting manual fetch fallback due to Invalid JWT...');
-                        try {
-                            const { data: sessionData } = await supabase.auth.getSession();
-                            const token = sessionData.session?.access_token || (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
-
-                            const manualResponse = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-mux-upload-url`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': `Bearer ${token}`,
-                                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-                                },
-                                body: JSON.stringify({
-                                    filename: fileObj.file.name,
-                                    videoId: videoId,
-                                    filePath: ""
-                                })
-                            });
-
-                            if (manualResponse.ok) {
-                                const manualData = await manualResponse.json();
-                                updateFileProps(fileObj.id, { progress: 30, muxAssetId: manualData.assetId });
-                                // Prosseguir para o upload do Mux
-                                const uploadResponse = await fetch(manualData.url, {
-                                    method: 'PUT',
-                                    body: fileObj.file,
-                                    headers: { 'Content-Type': fileObj.file.type }
-                                });
-                                if (!uploadResponse.ok) throw new Error('Falha no upload para Mux (Manual)');
-                                updateFileProps(fileObj.id, { status: 'processing', progress: 50 });
-                                successCount++;
-                                continue; // Vai para o próximo arquivo ou termina
-                            } else {
-                                const errorBody = await manualResponse.text();
-                                console.error('Manual fallback also failed:', manualResponse.status, errorBody);
-                                throw new Error(`Manual call failed: ${errorBody || manualResponse.statusText}`);
-                            }
-                        } catch (manualErr: any) {
-                            console.error('Manual fetch error:', manualErr);
-                            throw new Error('Falha crítica de autenticação (JWT Inválido)');
-                        }
-                    }
-
-                    throw new Error(errMsg || 'Falha ao obter URL de upload');
+                if (!configResponse.ok) {
+                    throw new Error(configData.error || `Erro EdgeF: ${JSON.stringify(configData)}`);
                 }
 
-                if (!data?.url) throw new Error('Falha ao obter URL de upload (Mux)');
+                const { videoId: bunnyVideoId, libraryId, apiKey } = configData;
 
-                updateFileProps(fileObj.id, { progress: 30, muxAssetId: data.assetId });
+                updateFileProps(fileObj.id, { progress: 30, bunnyId: bunnyVideoId });
 
-                // 3. Upload direto para o Mux (PUT)
-                const uploadResponse = await fetch(data.url, {
-                    method: 'PUT',
-                    body: fileObj.file,
-                    headers: { 'Content-Type': fileObj.file.type }
+                // Update the database with the bunny IDs from the frontend
+                await supabase.from('videos').update({
+                    bunny_id: bunnyVideoId,
+                    bunny_library_id: libraryId
+                }).eq('id', videoId);
+
+                // 3. Upload Direto para o Bunny CDN
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', `https://video.bunnycdn.com/library/${libraryId}/videos/${bunnyVideoId}`, true);
+                    xhr.setRequestHeader('AccessKey', apiKey);
+                    xhr.setRequestHeader('Accept', 'application/json');
+                    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+                    xhr.upload.onprogress = (ev) => {
+                        if (ev.lengthComputable) {
+                            const uploadPercent = (ev.loaded / ev.total) * 100;
+                            const totalProgress = 30 + (uploadPercent * 0.69);
+                            updateFileProps(fileObj.id, { progress: Number(totalProgress.toFixed(1)) });
+                        }
+                    };
+
+                    xhr.onload = () => {
+                        if (xhr.status === 200 || xhr.status === 201) {
+                            resolve(true);
+                        } else {
+                            reject(new Error(`Erro no servidor Bunny: ${xhr.statusText}`));
+                        }
+                    };
+
+                    xhr.onerror = () => reject(new Error('Erro na conexão com Bunny.net'));
+                    xhr.send(fileObj.file);
                 });
 
-                if (!uploadResponse.ok) throw new Error('Falha no upload para o servidor de processamento (Mux)');
-
-                updateFileProps(fileObj.id, { progress: 100, status: 'success' });
+                updateFileProps(fileObj.id, { progress: 100, status: 'processing', isPolling: true });
                 successCount++;
+
+                // Start Polling for Status
+                pollVideoStatus(fileObj.id, videoId);
 
             } catch (err: any) {
                 console.error(`Erro no upload de ${fileObj.file.name}:`, err);
@@ -231,7 +210,39 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
 
     if (!isOpen) return null;
 
-    const successfullyUploadedFiles = files.filter(f => f.status === 'success');
+    const successfullyUploadedFiles = files.filter(f => f.status === 'success' || f.status === 'processing');
+
+    const pollVideoStatus = (localFileId: string, dbVideoId: string) => {
+        const interval = setInterval(async () => {
+            const { data, error } = await supabase
+                .from('videos')
+                .select('status, thumbnail_url')
+                .eq('id', dbVideoId)
+                .single();
+
+            if (!error && data) {
+                if (data.status === 'ready') {
+                    clearInterval(interval);
+                    updateFileProps(localFileId, {
+                        status: 'success',
+                        thumbUrl: data.thumbnail_url,
+                        isPolling: false
+                    });
+                    if (onSuccess) onSuccess();
+                } else if (data.status === 'error') {
+                    clearInterval(interval);
+                    updateFileProps(localFileId, {
+                        status: 'error',
+                        error: 'Falha no processamento (Bunny)',
+                        isPolling: false
+                    });
+                }
+            }
+        }, 3000); // Check every 3 seconds
+
+        // Stop polling if the component unmounts - basic cleanup
+        return () => clearInterval(interval);
+    };
 
     const handleThumbUpload = async (fileObj: FileWithStatus, thumbFile: File) => {
         try {
@@ -241,7 +252,7 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
             if (!user) return;
 
             const fileExt = thumbFile.name.split('.').pop();
-            const fileName = `${user.id}/${fileObj.muxAssetId}-thumb.${fileExt}`;
+            const fileName = `${user.id}/${fileObj.bunnyId}-thumb.${fileExt}`;
 
             // Upload to Supabase Storage
             const { error: uploadError } = await supabase.storage
@@ -258,7 +269,7 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
             const { error: updateError } = await supabase
                 .from('videos')
                 .update({ thumbnail_url: publicUrl })
-                .eq('mux_asset_id', fileObj.muxAssetId);
+                .eq('bunny_id', fileObj.bunnyId);
 
             if (updateError) throw updateError;
 
@@ -278,7 +289,7 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                 {/* Header */}
                 <div className="p-6 border-b border-white/5 flex items-center justify-between">
                     <div>
-                        <h2 className="text-xl font-bold text-white">Subir novos vídeos</h2>
+                        <h2 className="text-xl font-bold text-white uppercase italic">Subir novos vídeos</h2>
                         <p className="text-xs text-neutral-400 mt-1">Hospedagem segura e otimizada para suas vendas</p>
                     </div>
                     <button
@@ -409,11 +420,11 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                                 )}
                             </div>
                             <h2 className="text-3xl font-black text-white">
-                                {files.every(f => f.status === 'success') ? 'Upload finalizado!' : 'Concluído com avisos'}
+                                {files.every(f => f.status === 'success' || f.status === 'processing') ? 'Upload finalizado!' : 'Concluído com avisos'}
                             </h2>
                             <p className="text-neutral-400 max-w-sm mx-auto">
-                                {files.some(f => f.status === 'success')
-                                    ? 'Seus vídeos foram enviados e estão sendo processados pela nossa CDN global. Eles aparecerão no seu painel em alguns segundos.'
+                                {files.some(f => f.status === 'success' || f.status === 'processing')
+                                    ? 'Seus vídeos foram enviados com segurança e estão sendo processados agora! Eles ficarão prontos no seu painel principal em cerca de ~1 minuto.'
                                     : 'Ocorreu um problema ao enviar seus vídeos. Verifique as mensagens de erro abaixo.'}
                             </p>
 
@@ -465,7 +476,9 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                                                     {fileObj.thumbUrl ? (
                                                         <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1"><CircleCheck className="w-3 h-3" /> Capa Definida</p>
                                                     ) : (
-                                                        <p className="text-xs text-neutral-500 mt-1">Capa Mux gerada automaticamente em breve...</p>
+                                                        <p className="text-xs text-neutral-500 mt-1">
+                                                            {fileObj.status === 'processing' ? 'Aguardando processamento no Bunny CDN...' : 'Capa gerada automaticamente em breve...'}
+                                                        </p>
                                                     )}
                                                 </div>
                                             </div>
@@ -525,6 +538,6 @@ export const UploadModal = ({ isOpen, onClose, onSuccess, showToast }: UploadMod
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };

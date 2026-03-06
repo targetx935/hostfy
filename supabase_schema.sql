@@ -14,7 +14,10 @@ create table
 alter table public.profiles enable row level security;
 
 -- Políticas de segurança
-create policy "Public profiles are viewable by everyone." on profiles for select using (true);
+create policy "Users can view their own profile." on profiles for select using (auth.uid() = id);
+create policy "Admins can view all profiles." on profiles for select using (
+  (select is_admin from public.profiles where id = auth.uid()) = true
+);
 create policy "Users can insert their own profile." on profiles for insert with check (auth.uid() = id);
 create policy "Users can update own profile." on profiles for update using (auth.uid() = id);
 
@@ -53,6 +56,25 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Função para proteger colunas sensíveis (is_admin, plan)
+create or replace function public.protect_profile_fields()
+returns trigger as $$
+begin
+  -- Se não for admin, reverte tentativas de mudar is_admin, plan ou subscription_status
+  if (select is_admin from public.profiles where id = auth.uid()) is not true then
+    new.is_admin = old.is_admin;
+    new.plan = old.plan;
+    new.subscription_status = old.subscription_status;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists before_profile_update on public.profiles;
+create trigger before_profile_update
+  before update on public.profiles
+  for each row execute procedure public.protect_profile_fields();
+
 -- Corrige (inserindo) os perfis de usuários que já se cadastraram antes do trigger existir
 insert into public.profiles (id)
 select id from auth.users
@@ -83,7 +105,7 @@ create table
     folder_id uuid references public.folders(id),
     title text not null,
     description text,
-    url text not null,
+    url text, -- Nullable because it will be filled by webhook later
     thumbnail_url text,
     duration integer default 0,
     plays integer default 0,
@@ -361,7 +383,10 @@ ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS exit_intent_overlay_e
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS smart_start_enabled BOOLEAN DEFAULT false;
 ALTER TABLE public.video_settings ADD COLUMN IF NOT EXISTS smart_start_speed NUMERIC DEFAULT 1.25;
 
+ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS bunny_id TEXT;
+ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS bunny_library_id TEXT;
 ALTER TABLE public.videos ADD COLUMN IF NOT EXISTS file_size BIGINT DEFAULT 0;
+ALTER TABLE public.videos ALTER COLUMN url DROP NOT NULL;
 
 -- ------------------------------------------------------------------------------------------------
 -- 12. INVOICES (payment history)

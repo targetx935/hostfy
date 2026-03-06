@@ -25,6 +25,7 @@ const ABTestsView = React.lazy<React.ComponentType<any>>(() => import('./views/A
 const RewardsView = React.lazy<React.ComponentType<any>>(() => import('./views/RewardsView').then((m: any) => ({ default: m.RewardsView || m.default })));
 const AdminView = React.lazy<React.ComponentType<any>>(() => import('./views/AdminView').then((m: any) => ({ default: m.AdminView || m.default })));
 const LeadsView = React.lazy<React.ComponentType<any>>(() => import('./views/LeadsView').then((m: any) => ({ default: m.LeadsView || m.default })));
+const LandingPageView = React.lazy<React.ComponentType<any>>(() => import('./views/LandingPageView').then((m: any) => ({ default: m.LandingPageView || m.default })));
 
 const VideoRouteWrapper = ({ videos, showToast, fetchContent, type }: any) => {
   const { id } = useParams();
@@ -68,17 +69,13 @@ function App() {
   const [newFolderName, setNewFolderName] = useState('');
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3000);
-  };
   const [openVideoMenuId, setOpenVideoMenuId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
 
   const planSettings = useMemo(() => getPlanSettings(userProfile?.plan || 'trial'), [userProfile?.plan]);
   const isSubscriptionValid = useMemo(() => isSubscriptionActive(userProfile), [userProfile]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
 
   // Embed Mode State
   const [isEmbedMode, setIsEmbedMode] = useState(false);
@@ -247,20 +244,24 @@ function App() {
     }
   };
 
-  const fetchContent = async () => {
-    if (!session?.user?.id) {
-      console.warn('fetchContent aborted: No active session');
+  const showToast = (message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchContent = async (forcedUserId?: string) => {
+    const userId = forcedUserId || session?.user?.id;
+    if (!userId) {
+      console.warn('fetchContent aborted: No user ID available');
       return;
     }
+
     setLoadingVideos(true);
     try {
       // Fetch folders and videos in parallel
       const [foldersResponse, videosResponse] = await Promise.all([
-        supabase.from('folders').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }),
-        // Admins can fetch all videos to calculate global stats, but we will filter for the list
-        userProfile?.is_admin
-          ? supabase.from('videos').select('*').order('created_at', { ascending: false })
-          : supabase.from('videos').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
+        supabase.from('folders').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('videos').select('*').eq('user_id', userId).order('created_at', { ascending: false })
       ]);
 
       if (foldersResponse.error) throw foldersResponse.error;
@@ -278,9 +279,7 @@ function App() {
           }
           return { ...v, computed_thumbnail: thumb };
         });
-        // Filter for personal library list (to avoid "ghost videos")
-        const personalVideos = optimizedVideos.filter(v => v.user_id === session.user.id);
-        setVideos(personalVideos);
+        setVideos(optimizedVideos);
 
         // Fetch Global Analytics Mega Graph data
         try {
@@ -392,9 +391,18 @@ function App() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        console.log('--- DEBUG: Sessão Ativa ---');
+        console.log('User ID:', session.user.id);
+        console.log('Email:', session.user.email);
+        console.log('---------------------------');
+      } else {
+        console.log('--- DEBUG: Nenhuma Sessão Ativa ---');
+      }
+
       if (session && !initialFetchDone.current) {
         initialFetchDone.current = true;
-        fetchContent();
+        fetchContent(session.user.id);
         fetchUserProfile(session.user.id);
         fetchNotifications();
       }
@@ -406,7 +414,7 @@ function App() {
       setSession(session);
       if (session && !initialFetchDone.current) {
         initialFetchDone.current = true;
-        fetchContent();
+        fetchContent(session.user.id);
         fetchUserProfile(session.user.id);
         fetchNotifications();
       }
@@ -542,6 +550,7 @@ function App() {
           leadCaptureTitle={embedSettings.lead_capture_title}
           leadCaptureButtonText={embedSettings.lead_capture_button_text}
           socialProofEnabled={embedSettings.social_proof_enabled}
+          facebookPixelId={embedSettings.facebook_pixel_id}
           onCtaClick={handleCtaConversion}
         />
       </div>
@@ -549,14 +558,19 @@ function App() {
   }
 
 
+  if (location.pathname === '/lp') {
+    return (
+      <div className="w-full min-h-screen bg-black overflow-x-hidden">
+        <Suspense fallback={<div className="flex items-center justify-center p-20 text-brand-primary"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div></div>}>
+          <LandingPageView />
+        </Suspense>
+      </div>
+    );
+  }
+
   if (!session) {
     return <Auth onLogin={() => { }} />;
   }
-
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim() || !session?.user?.id) return;
@@ -628,12 +642,79 @@ function App() {
 
       showToast('Vídeo apagado com sucesso!');
       setVideoToDelete(null);
+      setSelectedVideoIds(prev => prev.filter(id => id !== videoId));
       fetchContent(); // Refresh list
     } catch (err: any) {
       console.error('Error deleting video:', err);
       showToast(err.message || 'Erro ao deletar vídeo');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedVideoIds.length === 0) return;
+
+    if (!window.confirm(`Deseja realmente apagar ${selectedVideoIds.length} vídeos selecionados?`)) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      showToast(`Apagando ${selectedVideoIds.length} vídeos...`);
+
+      let success = 0;
+      let fail = 0;
+
+      for (const videoId of selectedVideoIds) {
+        try {
+          const { data, error: invokeError } = await supabase.functions.invoke('delete-video', {
+            body: { videoId }
+          });
+
+          if (invokeError || (data && data.error)) {
+            const { error: dbError } = await supabase
+              .from('videos')
+              .delete()
+              .eq('id', videoId);
+            if (dbError) throw dbError;
+          }
+          success++;
+        } catch (e) {
+          console.error(`Failed to delete video ${videoId}:`, e);
+          fail++;
+        }
+      }
+
+      if (success > 0) showToast(`${success} vídeo(s) apagado(s) com sucesso!`);
+      if (fail > 0) showToast(`Falha ao apagar ${fail} vídeo(s).`);
+
+      setSelectedVideoIds([]);
+      fetchContent();
+    } catch (err: any) {
+      showToast('Erro ao processar exclusão em massa');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleSelectVideo = (id: string) => {
+    setSelectedVideoIds(prev =>
+      prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = (displayedVideos: VideoData[]) => {
+    const currentDisplayedIds = displayedVideos.map(v => v.id);
+    const allSelected = currentDisplayedIds.every(id => selectedVideoIds.includes(id)) && currentDisplayedIds.length > 0;
+
+    if (allSelected) {
+      setSelectedVideoIds(prev => prev.filter(id => !currentDisplayedIds.includes(id)));
+    } else {
+      setSelectedVideoIds(prev => {
+        const others = prev.filter(id => !currentDisplayedIds.includes(id));
+        return [...others, ...currentDisplayedIds];
+      });
     }
   };
 
@@ -678,7 +759,7 @@ function App() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 right-6 bg-brand-primary text-white px-6 py-3 rounded-lg shadow-[0_10px_40px_rgba(232,42,88,0.5)] flex items-center z-[110] animate-[fadeIn_0.3s_ease-out]">
+        <div className="fixed bottom-6 right-6 bg-brand-primary text-white px-6 py-3 rounded-lg shadow-[0_10px_40px_rgba(232,42,88,0.5)] flex items-center z-50 animate-[fadeIn_0.3s_ease-out]">
           <span className="font-medium text-sm">{toast}</span>
         </div>
       )}
@@ -1092,7 +1173,7 @@ function App() {
               <Route path="/" element={
                 <div className="animate-[fadeIn_0.5s_ease-out]">
                   {/* Mega Graph Dashboard Header */}
-                  {(videos.length > 0 || userProfile?.is_admin) && !loadingVideos && (
+                  {videos.length > 0 && !loadingVideos && (
                     <div className="mb-10 bg-gradient-to-br from-brand-dark to-black border border-white/5 rounded-3xl p-8 relative overflow-hidden shadow-2xl">
                       {/* Background Effects */}
                       <div className="absolute top-0 right-0 w-96 h-96 bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -1239,125 +1320,186 @@ function App() {
                     }
 
                     return (
-                      <div className="bg-brand-dark-lighter/30 border border-white/5 rounded-xl overflow-x-auto overflow-y-hidden shadow-lg">
-                        <table className="w-full text-left text-sm whitespace-nowrap min-w-[800px]">
-                          <thead className="text-neutral-400 border-b border-white/5 bg-white/[0.02]">
-                            <tr>
-                              <th className="w-12 px-6 py-5">
-                                <input type="checkbox" className="rounded bg-brand-dark border-white/10 text-brand-primary focus:ring-brand-primary/50 w-4 h-4 accent-brand-primary cursor-pointer" />
-                              </th>
-                              <th className="px-6 py-5 font-medium">Nome</th>
-                              <th className="w-32 px-6 py-5 font-medium">Criado em</th>
-                              <th className="w-24 px-6 py-5 font-medium">Plays</th>
-                              <th className="w-32 px-6 py-5 font-medium text-right">Ações</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5">
-                            {loadingVideos ? (
-                              Array.from({ length: 5 }).map((_, idx) => (
-                                <tr key={idx} className="border-b border-white/5 animate-pulse">
-                                  <td className="px-6 py-4"><div className="w-4 h-4 bg-white/10 rounded"></div></td>
-                                  <td className="px-6 py-4 flex items-center gap-3">
-                                    <div className="w-12 h-8 bg-white/10 rounded"></div>
-                                    <div className="w-32 h-4 bg-white/10 rounded"></div>
-                                  </td>
-                                  <td className="w-32 px-6 py-4"><div className="w-20 h-4 bg-white/10 rounded"></div></td>
-                                  <td className="w-24 px-6 py-4"><div className="w-10 h-4 bg-white/10 rounded"></div></td>
-                                  <td className="w-32 px-6 py-4 text-right"><div className="w-8 h-4 bg-white/10 rounded ml-auto"></div></td>
-                                </tr>
-                              ))
-                            ) : displayedVideos.length === 0 ? (
+                      <>
+                        {/* Bulk Action Bar */}
+                        {selectedVideoIds.length > 0 && (
+                          <div className="mb-6 bg-brand-primary/10 border border-brand-primary/20 rounded-xl p-4 flex items-center justify-between animate-[fadeIn_0.3s_ease-out] shadow-lg shadow-brand-primary/5">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-brand-primary text-white text-xs font-bold px-2 py-1 rounded-md min-w-[24px] text-center">
+                                {selectedVideoIds.length}
+                              </div>
+                              <span className="text-sm font-medium text-white">vídeos selecionados</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <button
+                                onClick={() => setSelectedVideoIds([])}
+                                className="text-xs text-neutral-400 hover:text-white transition-colors font-medium"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={handleBulkDelete}
+                                className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold py-2 px-4 rounded-lg transition-all shadow-lg shadow-red-500/20"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Apagar Selecionados
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="bg-brand-dark-lighter/30 border border-white/5 rounded-xl overflow-x-auto overflow-y-hidden shadow-lg">
+                          <table className="w-full text-left text-sm whitespace-nowrap min-w-[800px]">
+                            <thead className="text-neutral-400 border-b border-white/5 bg-white/[0.02]">
                               <tr>
-                                <td colSpan={5} className="py-8 text-center text-neutral-500">
-                                  Nenhum vídeo nesta seção.
-                                </td>
+                                <th className="w-12 px-6 py-5">
+                                  <input
+                                    type="checkbox"
+                                    checked={displayedVideos.length > 0 && displayedVideos.every(v => selectedVideoIds.includes(v.id))}
+                                    onChange={() => toggleSelectAll(displayedVideos)}
+                                    className="rounded bg-brand-dark border-white/10 text-brand-primary focus:ring-brand-primary/50 w-4 h-4 accent-brand-primary cursor-pointer"
+                                  />
+                                </th>
+                                <th className="px-6 py-5 font-medium">Nome</th>
+                                <th className="w-32 px-6 py-5 font-medium">Criado em</th>
+                                <th className="w-24 px-6 py-5 font-medium">Plays</th>
+                                <th className="w-32 px-6 py-5 font-medium text-right">Ações</th>
                               </tr>
-                            ) : displayedVideos.map((video) => (
-                              <tr key={video.id} className="hover:bg-white/[0.03] transition-colors group cursor-pointer" onClick={() => { navigate(`/video/${video.id}`); showToast(`Abrindo detalhes: ${video.title}`); }}>
-                                <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                                  <input type="checkbox" className="rounded bg-brand-dark border-white/10 text-brand-primary focus:ring-brand-primary/50 opacity-50 group-hover:opacity-100 transition-opacity w-4 h-4 accent-brand-primary cursor-pointer" />
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center gap-4">
-                                    <div className="relative w-16 h-10 bg-neutral-800 rounded-md flex items-center justify-center overflow-hidden border border-white/10 group-hover:border-brand-primary/40 transition-colors shrink-0 shadow-lg">
-                                      <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 to-neutral-900"></div>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {loadingVideos ? (
+                                Array.from({ length: 5 }).map((_, idx) => (
+                                  <tr key={idx} className="border-b border-white/5 animate-pulse">
+                                    <td className="px-6 py-4"><div className="w-4 h-4 bg-white/10 rounded"></div></td>
+                                    <td className="px-6 py-4 flex items-center gap-3">
+                                      <div className="w-12 h-8 bg-white/10 rounded"></div>
+                                      <div className="w-32 h-4 bg-white/10 rounded"></div>
+                                    </td>
+                                    <td className="w-32 px-6 py-4"><div className="w-20 h-4 bg-white/10 rounded"></div></td>
+                                    <td className="w-24 px-6 py-4"><div className="w-10 h-4 bg-white/10 rounded"></div></td>
+                                    <td className="w-32 px-6 py-4 text-right"><div className="w-8 h-4 bg-white/10 rounded ml-auto"></div></td>
+                                  </tr>
+                                ))
+                              ) : displayedVideos.length === 0 ? (
+                                <tr>
+                                  <td colSpan={5} className="py-8 text-center text-neutral-500">
+                                    Nenhum vídeo nesta seção.
+                                  </td>
+                                </tr>
+                              ) : displayedVideos.map((video) => (
+                                <tr key={video.id} className={`hover:bg-white/[0.03] transition-colors group ${video.status === 'processing' ? 'opacity-80' : 'cursor-pointer'} ${selectedVideoIds.includes(video.id) ? 'bg-white/[0.02]' : ''}`} onClick={() => {
+                                  if (video.status === 'processing') return; // Do not open details if processing
+                                  navigate(`/video/${video.id}`);
+                                  showToast(`Abrindo detalhes: ${video.title}`);
+                                }}>
+                                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedVideoIds.includes(video.id)}
+                                      onChange={() => toggleSelectVideo(video.id)}
+                                      className={`rounded bg-brand-dark border-white/10 text-brand-primary focus:ring-brand-primary/50 transition-opacity w-4 h-4 accent-brand-primary cursor-pointer ${selectedVideoIds.includes(video.id) ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'}`}
+                                    />
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-4">
+                                      <div className="relative w-16 h-10 bg-neutral-800 rounded-md flex items-center justify-center overflow-hidden border border-white/10 group-hover:border-brand-primary/40 transition-colors shrink-0 shadow-lg">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 to-neutral-900"></div>
 
-                                      {/* Play icon behind image (shows if image is transparent/has errors and gets hidden) */}
-                                      <Play className="w-4 h-4 text-white/50 absolute z-0 hidden group-hover:text-brand-primary transition-colors" fill="currentColor" />
-
-                                      {(() => {
-                                        // Priority 1: User uploaded custom thumbnail
-                                        // Priority 2: Pre-computed or Regex default thumbnail
-                                        const finalThumbnailUrl = video.thumbnail_url || video.computed_thumbnail;
-
-                                        if (finalThumbnailUrl) {
-                                          return (
-                                            <img
-                                              src={finalThumbnailUrl}
-                                              alt={video.title || "Video"}
-                                              className="w-full h-full object-cover relative z-10 bg-neutral-900"
-                                              onError={(e) => {
-                                                // If it fails to load, gracefully hide it and let Play icon show
-                                                e.currentTarget.style.display = 'none';
-                                                const icon = e.currentTarget.parentElement?.querySelector('svg');
-                                                if (icon) icon.classList.remove('hidden');
-                                              }}
-                                            />
-                                          );
-                                        }
-                                        return <Play className="w-4 h-4 text-white/80 relative z-10 group-hover:text-brand-primary transition-colors" fill="currentColor" />;
-                                      })()}
-                                    </div>
-                                    <span className="font-medium text-neutral-200 group-hover:text-white transition-colors text-base">{video.title}</span>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-neutral-400">
-                                  {new Date(video.created_at).toLocaleDateString('pt-BR')}
-                                </td>
-                                <td className="px-6 py-4 text-neutral-300 font-medium">{video.plays}</td>
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                                    <button className="p-2.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-brand-primary transition-colors cursor-pointer" title="Analytics" onClick={(e) => { e.stopPropagation(); navigate(`/video/${video.id}/analytics`); }}>
-                                      <BarChart2 className="w-4 h-4" />
-                                    </button>
-                                    <button className="p-2.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-emerald-400 transition-colors cursor-pointer" title="Embed de Código" onClick={(e) => {
-                                      e.stopPropagation();
-                                      navigator.clipboard.writeText(`<iframe src="${window.location.origin}/?embed=${video.id}" frameborder="0" allowfullscreen allow="autoplay; fullscreen; picture-in-picture" style="aspect-ratio: 16/9; width: 100%; height: auto; border-radius: 12px;"></iframe>`);
-                                      showToast(`Código VSL copiado!`);
-                                    }}>
-                                      <Code className="w-4 h-4" />
-                                    </button>
-                                    <div className="relative">
-                                      <button className={`p-2.5 rounded-lg transition-colors cursor-pointer ${openVideoMenuId === video.id ? 'bg-white/10 text-white' : 'hover:bg-white/10 text-neutral-400 hover:text-white'}`} title="Opções" onClick={(e) => { e.stopPropagation(); setOpenVideoMenuId(openVideoMenuId === video.id ? null : video.id); }}>
-                                        <MoreVertical className="w-4 h-4" />
-                                      </button>
-
-                                      {openVideoMenuId === video.id && (
-                                        <>
-                                          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenVideoMenuId(null); }}></div>
-                                          <div className="absolute right-0 mt-1 w-48 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
-                                            <button
-                                              className="w-full text-left px-4 py-3 hover:bg-red-500/10 text-sm text-red-400 hover:text-red-300 transition-colors flex items-center gap-2 cursor-pointer"
-                                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenVideoMenuId(null); setVideoToDelete({ id: video.id, title: video.title }); }}
-                                            >
-                                              <Trash2 className="w-4 h-4" />
-                                              Apagar Vídeo
-                                            </button>
+                                        {video.status === 'processing' ? (
+                                          <div className="flex items-center justify-center w-full h-full relative z-10 bg-black/60">
+                                            <div className="w-4 h-4 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin"></div>
                                           </div>
+                                        ) : (
+                                          <>
+                                            {/* Play icon behind image (shows if image is transparent/has errors and gets hidden) */}
+                                            <Play className="w-4 h-4 text-white/50 absolute z-0 hidden group-hover:text-brand-primary transition-colors" fill="currentColor" />
+
+                                            {(() => {
+                                              // Priority 1: User uploaded custom thumbnail
+                                              // Priority 2: Pre-computed or Regex default thumbnail
+                                              const finalThumbnailUrl = video.thumbnail_url || video.computed_thumbnail;
+
+                                              if (finalThumbnailUrl) {
+                                                return (
+                                                  <img
+                                                    src={finalThumbnailUrl}
+                                                    alt={video.title || "Video"}
+                                                    className="w-full h-full object-cover relative z-10 bg-neutral-900"
+                                                    onError={(e) => {
+                                                      // If it fails to load, gracefully hide it and let Play icon show
+                                                      e.currentTarget.style.display = 'none';
+                                                      const icon = e.currentTarget.parentElement?.querySelector('svg');
+                                                      if (icon) icon.classList.remove('hidden');
+                                                    }}
+                                                  />
+                                                );
+                                              }
+                                              return <Play className="w-4 h-4 text-white/80 relative z-10 group-hover:text-brand-primary transition-colors" fill="currentColor" />;
+                                            })()}
+                                          </>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="font-medium text-neutral-200 group-hover:text-white transition-colors text-base">{video.title}</span>
+                                        {video.status === 'processing' && (
+                                          <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider mt-0.5 animate-pulse bg-amber-400/10 px-1.5 py-0.5 rounded-md w-max">Em processamento (~1 min)</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-neutral-400">
+                                    {new Date(video.created_at).toLocaleDateString('pt-BR')}
+                                  </td>
+                                  <td className="px-6 py-4 text-neutral-300 font-medium">{video.plays}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                      {video.status !== 'processing' && (
+                                        <>
+                                          <button className="p-2.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-brand-primary transition-colors cursor-pointer" title="Analytics" onClick={(e) => { e.stopPropagation(); navigate(`/video/${video.id}/analytics`); }}>
+                                            <BarChart2 className="w-4 h-4" />
+                                          </button>
+                                          <button className="p-2.5 hover:bg-white/10 rounded-lg text-neutral-400 hover:text-emerald-400 transition-colors cursor-pointer" title="Embed de Código" onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigator.clipboard.writeText(`<iframe src="${window.location.origin}/?embed=${video.id}" frameborder="0" allowfullscreen allow="autoplay; fullscreen; picture-in-picture" style="aspect-ratio: 16/9; width: 100%; height: auto; border-radius: 12px;"></iframe>`);
+                                            showToast(`Código VSL copiado!`);
+                                          }}>
+                                            <Code className="w-4 h-4" />
+                                          </button>
                                         </>
                                       )}
+                                      <div className="relative">
+                                        <button className={`p-2.5 rounded-lg transition-colors cursor-pointer ${openVideoMenuId === video.id ? 'bg-white/10 text-white' : 'hover:bg-white/10 text-neutral-400 hover:text-white'}`} title="Opções" onClick={(e) => { e.stopPropagation(); setOpenVideoMenuId(openVideoMenuId === video.id ? null : video.id); }}>
+                                          <MoreVertical className="w-4 h-4" />
+                                        </button>
+
+                                        {openVideoMenuId === video.id && (
+                                          <>
+                                            <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenVideoMenuId(null); }}></div>
+                                            <div className="absolute right-0 mt-1 w-48 bg-neutral-900 border border-white/10 rounded-xl shadow-2xl z-50 py-1 overflow-hidden">
+                                              <button
+                                                className="w-full text-left px-4 py-3 hover:bg-red-500/10 text-sm text-red-400 hover:text-red-300 transition-colors flex items-center gap-2 cursor-pointer"
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpenVideoMenuId(null); setVideoToDelete({ id: video.id, title: video.title }); }}
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                                Apagar Vídeo
+                                              </button>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     );
                   })()}
                 </div>
               } />
+              <Route path="/lp" element={<LandingPageView />} />
               <Route path="/leads" element={<LeadsView userPlan={userProfile?.plan} />} />
               <Route path="/settings" element={<SettingsView userPlan={userProfile?.plan} />} />
               <Route path="/ab-tests" element={<ABTestsView userPlan={userProfile?.plan} />} />

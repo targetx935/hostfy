@@ -37,6 +37,7 @@ interface CustomPlayerProps {
     exitIntentOverlayEnabled?: boolean;
     smartStartEnabled?: boolean;
     smartStartSpeed?: number;
+    facebookPixelId?: string | null;
 }
 
 export const CustomPlayer = memo(({
@@ -71,7 +72,8 @@ export const CustomPlayer = memo(({
     resumeOverlayColor = '',
     exitIntentOverlayEnabled = false,
     smartStartEnabled = false,
-    smartStartSpeed = 1.25
+    smartStartSpeed = 1.25,
+    facebookPixelId = ''
 }: CustomPlayerProps) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -126,6 +128,42 @@ export const CustomPlayer = memo(({
 
         return () => clearInterval(interval);
     }, [watermarkEnabled]);
+
+    // Facebook Pixel Logic
+    useEffect(() => {
+        if (!facebookPixelId) return;
+
+        // Initialize Facebook Pixel
+        const initFB = () => {
+            // @ts-ignore
+            if (window.fbq) return;
+            // @ts-ignore
+            !(function (f, b, e, v, n, t, s) {
+                if (f.fbq) return;
+                n = f.fbq = function () {
+                    n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+                };
+                if (!f._fbq) f._fbq = n;
+                n.push = n;
+                n.loaded = !0;
+                n.version = "2.0";
+                n.queue = [];
+                t = b.createElement(e);
+                t.async = !0;
+                t.src = v;
+                s = b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t, s);
+            })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+
+            // @ts-ignore
+            fbq("init", facebookPixelId);
+            // @ts-ignore
+            fbq("track", "PageView");
+            console.log("FB Pixel Initialized:", facebookPixelId);
+        };
+
+        initFB();
+    }, [facebookPixelId]);
 
     // Resume Playback Logic (LocalStorage)
     useEffect(() => {
@@ -408,6 +446,16 @@ export const CustomPlayer = memo(({
         if (ctaUrl) {
             window.open(ctaUrl, '_blank');
         }
+
+        // Facebook Pixel Event
+        // @ts-ignore
+        if (window.fbq && facebookPixelId) {
+            // @ts-ignore
+            fbq("track", "Contact", {
+                video_id: videoId,
+                cta_text: ctaText
+            });
+        }
     }
 
     // Prevent seeking/skipping
@@ -459,6 +507,16 @@ export const CustomPlayer = memo(({
             setIsLeadCaptureVisible(false);
             videoRef.current?.play();
             setIsPlaying(true);
+
+            // Facebook Pixel Event
+            // @ts-ignore
+            if (window.fbq && facebookPixelId) {
+                // @ts-ignore
+                fbq("track", "Lead", {
+                    video_id: videoId,
+                    email: leadEmail
+                });
+            }
         } catch (err) {
             console.error('Error submitting lead:', err);
         }

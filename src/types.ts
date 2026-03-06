@@ -32,6 +32,7 @@ export interface VideoSettingsData {
     watermark_opacity: number;
     unmute_overlay_enabled: boolean;
     progress_bar_height: number;
+    facebook_pixel_id: string | null;
 }
 
 export interface VideoSessionData {
