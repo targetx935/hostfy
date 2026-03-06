@@ -17,10 +17,10 @@ serve(async (req) => {
                 Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
             );
 
-            const playbackUrl = `https://iframe.mediadelivery.net/embed/${libraryId}/${bunnyVideoId}`;
+            const playbackUrl = `https://vz-db553844-7d5.b-cdn.net/${bunnyVideoId}/playlist.m3u8`;
             const thumbnailUrl = `https://vz-db553844-7d5.b-cdn.net/${bunnyVideoId}/thumbnail.jpg`;
             // Note: The thumbnail host depends on your Bunny library's pull zone.
-            // A more robust way is to use the library's hostname if known.
+            // A more robust way is to use the library's hostname if known from ENV.
 
             const { data: videoData, error: fetchError } = await supabaseAdmin
                 .from('videos')
